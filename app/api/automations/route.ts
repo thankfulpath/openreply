@@ -142,6 +142,9 @@ export async function GET(request: NextRequest) {
       instagramAccount: {
         select: { username: true, instagramId: true },
       },
+      facebookPage: {
+        select: { name: true, pageId: true, isConnected: true },
+      },
       _count: {
         select: { dmLogs: true },
       },

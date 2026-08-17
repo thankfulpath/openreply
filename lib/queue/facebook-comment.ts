@@ -105,7 +105,7 @@ const productionDeps: FacebookCommentProcessorDeps = {
         platform: "FACEBOOK",
         isActive: true,
         facebookPageId: { not: null },
-        facebookPage: { pageId },
+        facebookPage: { pageId, isConnected: true },
         OR: [{ postId: mediaId }, { matchAnyPost: true }],
       },
       include: {

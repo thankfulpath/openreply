@@ -15,6 +15,7 @@ import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview"
 
 interface Campaign {
   id: string;
+  platform: "INSTAGRAM" | "FACEBOOK";
   name: string;
   postId: string | null;
   postUrl: string | null;
@@ -38,8 +39,9 @@ interface Campaign {
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
   isActive: boolean;
-  instagramAccountId: string;
-  instagramAccount: { username: string };
+  instagramAccountId: string | null;
+  instagramAccount: { username: string } | null;
+  facebookPage: { name: string; pageId: string; isConnected: boolean } | null;
   trackedLinks?: {
     destinationUrl: string;
     label?: string | null;
@@ -83,8 +85,9 @@ export default function CampaignDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!campaign) return;
+    if (!campaign || campaign.platform !== "INSTAGRAM") return;
     const acct = campaign.instagramAccountId;
+    if (!acct) return;
     fetch(`/api/instagram/profile?instagramAccountId=${acct}`)
       .then((r) => r.json())
       .then((d) =>
@@ -303,12 +306,14 @@ export default function CampaignDetailPage() {
             </TabButton>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href={`/campaigns/${campaign.id}/edit`}
-              className="rounded border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
-            >
-              Edit
-            </Link>
+            {campaign.platform === "INSTAGRAM" && (
+              <Link
+                href={`/campaigns/${campaign.id}/edit`}
+                className="rounded border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
+              >
+                Edit
+              </Link>
+            )}
             <button
               onClick={toggleActive}
               disabled={busy}
@@ -341,7 +346,11 @@ export default function CampaignDetailPage() {
           <CampaignPreview
             tab={previewTab}
             onTabChange={setPreviewTab}
-            username={campaign.instagramAccount.username}
+            username={
+              campaign.platform === "FACEBOOK"
+                ? campaign.facebookPage?.name ?? "Thankful Path"
+                : campaign.instagramAccount?.username ?? "Instagram"
+            }
             avatarUrl={avatarUrl}
             postThumb={postThumb}
             caption=""

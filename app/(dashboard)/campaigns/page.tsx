@@ -14,6 +14,7 @@ import { readCache, writeCache } from "@/lib/client-cache";
 
 interface Campaign {
   id: string;
+  platform: "INSTAGRAM" | "FACEBOOK";
   name: string;
   goal: string | null;
   postId: string | null;
@@ -34,11 +35,16 @@ interface Campaign {
   followPromptButtonLabel: string | null;
   isActive: boolean;
   wholeWordMatch: boolean;
-  instagramAccountId: string;
+  instagramAccountId: string | null;
   instagramAccount: {
     username: string;
     instagramId: string;
-  };
+  } | null;
+  facebookPage: {
+    name: string;
+    pageId: string;
+    isConnected: boolean;
+  } | null;
   reportShareSlug: string | null;
   reportShareEnabled: boolean;
   reportUrl: string | null;
@@ -127,7 +133,12 @@ export default function CampaignsPage() {
     if (automations.length === 0) return;
     let cancelled = false;
     const accountIds = Array.from(
-      new Set(automations.map((a) => a.instagramAccountId))
+      new Set(
+        automations
+          .filter((automation) => automation.platform === "INSTAGRAM")
+          .map((automation) => automation.instagramAccountId)
+          .filter((accountId): accountId is string => Boolean(accountId))
+      )
     ).sort();
     const cacheKey = `ig-media:${accountIds.join(",")}`;
 
@@ -238,6 +249,7 @@ export default function CampaignsPage() {
   }
 
   async function duplicateAutomation(auto: Campaign) {
+    if (auto.platform !== "INSTAGRAM" || !auto.instagramAccountId) return;
     setMenuOpenId(null);
     const specific = !auto.matchAnyPost && !auto.pendingNextReel;
     try {
@@ -444,7 +456,9 @@ export default function CampaignsPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="text-sm font-semibold truncate">{auto.name}</h3>
                   <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                    @{auto.instagramAccount.username}
+                    {auto.platform === "FACEBOOK"
+                      ? `Facebook · ${auto.facebookPage?.name ?? "Page"}`
+                      : `@${auto.instagramAccount?.username ?? "Instagram"}`}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -575,12 +589,14 @@ export default function CampaignsPage() {
                         onClick={() => setMenuOpenId(null)}
                       />
                       <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-                        <button
-                          onClick={() => void duplicateAutomation(auto)}
-                          className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
-                        >
-                          Duplicate
-                        </button>
+                        {auto.platform === "INSTAGRAM" && (
+                          <button
+                            onClick={() => void duplicateAutomation(auto)}
+                            className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
+                          >
+                            Duplicate
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setMenuOpenId(null);

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
+import { FacebookConnectNotice } from "@/components/facebook-connect-notice";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 
 interface SettingsData {
@@ -45,11 +46,21 @@ interface WorkspaceMembersData {
   }>;
 }
 
+interface FacebookPageData {
+  id: string;
+  pageId: string;
+  name: string;
+  isConnected: boolean;
+  webhookSubscribed: boolean;
+  tokenExpiresAt: string | null;
+}
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [membersData, setMembersData] = useState<WorkspaceMembersData | null>(
     null
   );
+  const [facebookPages, setFacebookPages] = useState<FacebookPageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -60,10 +71,14 @@ export default function SettingsPage() {
     Promise.all([
       fetch("/api/dashboard/stats").then((res) => res.json()),
       fetch("/api/workspace/members").then((res) => res.json()),
+      fetch("/api/facebook/accounts").then((res) => res.json()),
     ])
-      .then(([statsPayload, membersPayload]) => {
+      .then(([statsPayload, membersPayload, facebookPayload]) => {
         if (statsPayload.success) setData(statsPayload.data);
         if (membersPayload.success) setMembersData(membersPayload.data);
+        if (facebookPayload.success) {
+          setFacebookPages(facebookPayload.data.facebookPages);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -84,6 +99,20 @@ export default function SettingsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instagramAccountId }),
+    });
+    window.location.reload();
+  }
+
+  async function disconnectFacebook(facebookPageId: string) {
+    if (!confirm("Disconnect Facebook Page? Its campaigns will be paused.")) {
+      return;
+    }
+
+    setBusy(`disconnect-facebook:${facebookPageId}`);
+    await fetch("/api/facebook/disconnect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ facebookPageId }),
     });
     window.location.reload();
   }
@@ -134,6 +163,7 @@ export default function SettingsPage() {
           page fails the production build without one. */}
       <Suspense fallback={null}>
         <InstagramConnectNotice />
+        <FacebookConnectNotice />
       </Suspense>
 
       <section className="panel rounded p-4 sm:p-6">
@@ -214,6 +244,78 @@ export default function SettingsPage() {
             className="px-4 py-2 rounded text-sm font-medium transition-colors bg-accent text-white hover:bg-accent-hover"
           >
             {accounts.length > 0 ? "Connect another account" : "Connect Instagram"}
+          </a>
+        </div>
+      </section>
+
+      <section className="panel rounded p-4 sm:p-6">
+        <h2 className="text-base font-semibold mb-6">Facebook Page Connection</h2>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-border py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Status</p>
+              <p className="mt-0.5 text-xs text-muted">
+                Page comments, public replies, and Messenger depend on this connection.
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                facebookPages.some((page) => page.isConnected)
+                  ? "bg-success/10 text-success"
+                  : "bg-warning/10 text-warning"
+              }`}
+            >
+              {facebookPages.some((page) => page.isConnected)
+                ? "Connected"
+                : "Not connected"}
+            </span>
+          </div>
+
+          <div className="space-y-3 py-3">
+            {facebookPages.length === 0 && (
+              <p className="text-sm text-muted">
+                Connect the Thankful Path Page to enable Facebook comment-to-Messenger.
+              </p>
+            )}
+            {facebookPages.map((page) => (
+              <div
+                key={page.id}
+                className="flex flex-col gap-3 rounded border border-border bg-surface/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {page.name}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {page.isConnected ? "Connected" : "Disconnected"} ·{" "}
+                    {page.webhookSubscribed ? "Webhook ready" : "Webhook pending"}
+                  </p>
+                </div>
+                {page.isConnected && (
+                  <button
+                    onClick={() => disconnectFacebook(page.id)}
+                    disabled={busy === `disconnect-facebook:${page.id}`}
+                    className="inline-flex items-center justify-center rounded border border-error/20 px-4 py-2 text-sm font-medium text-error transition-all hover:border-error/40 hover:bg-error/10 disabled:opacity-50"
+                  >
+                    {busy === `disconnect-facebook:${page.id}`
+                      ? "Disconnecting..."
+                      : "Disconnect"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-3 border-t border-border pt-4">
+          <a
+            href="/api/facebook/connect"
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+          >
+            {facebookPages.some((page) => page.isConnected)
+              ? "Reconnect Facebook Page"
+              : "Connect Facebook Page"}
           </a>
         </div>
       </section>

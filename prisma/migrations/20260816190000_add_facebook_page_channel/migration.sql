@@ -9,6 +9,7 @@ CREATE TABLE "FacebookPage" (
     "name" TEXT NOT NULL,
     "accessToken" TEXT NOT NULL,
     "tokenExpiresAt" TIMESTAMP(3),
+    "isConnected" BOOLEAN NOT NULL DEFAULT true,
     "webhookSubscribed" BOOLEAN NOT NULL DEFAULT false,
     "connectedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
