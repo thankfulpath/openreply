@@ -1,5 +1,6 @@
 import { getMetaGraphApiVersion, requireEnv } from "@/lib/env";
 import { handleResponse } from "@/lib/meta/client";
+import type { FacebookManagedPage } from "@/lib/meta/facebook-client";
 
 export const FACEBOOK_PAGE_SCOPES = [
   "pages_show_list",
@@ -9,6 +10,15 @@ export const FACEBOOK_PAGE_SCOPES = [
   "pages_manage_metadata",
   "pages_messaging",
 ] as const;
+
+export function chooseConfiguredFacebookPage(
+  pages: FacebookManagedPage[],
+  configuredPageId: string | undefined
+): FacebookManagedPage | null {
+  const pageId = configuredPageId?.trim();
+  if (!pageId) return null;
+  return pages.find((page) => page.id === pageId) ?? null;
+}
 
 function graphBase(): string {
   return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;

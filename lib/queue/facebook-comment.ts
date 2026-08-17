@@ -4,11 +4,11 @@ import { prisma } from "@/lib/db/client";
 import {
   sendFacebookPrivateReply,
   sendFacebookPublicReply,
+  shouldRetryFacebookSend,
 } from "@/lib/meta/facebook-client";
 import { decryptToken } from "@/lib/meta/oauth";
 import type { ProcessCommentJob } from "@/lib/queue/client";
 import {
-  buildTrackedUrl,
   renderMessageWithTracking,
 } from "@/lib/tracking/message";
 import { signRecipientReference } from "@/lib/tracking/recipient-reference";
@@ -23,6 +23,9 @@ export interface FacebookAutomation {
   matchAnyWord: boolean;
   wholeWordMatch: boolean;
   dmMessage: string;
+  openingDmEnabled: boolean;
+  openingDmMessage: string | null;
+  openingDmButtonLabel: string | null;
   publicReplyEnabled: boolean;
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
@@ -87,8 +90,11 @@ export interface FacebookCommentProcessorDeps {
   ): Promise<unknown>;
   sendPrivateReply(
     accessToken: string,
+    pageId: string,
     commentId: string,
-    message: string
+    message: string,
+    quickReplyTitle: string,
+    quickReplyPayload: string
   ): Promise<{ message_id?: string; recipient_id?: string; id?: string }>;
   signRecipientReference(dmLogId: string): string;
   now(): Date;
@@ -197,6 +203,7 @@ export async function processFacebookComment(
     const existing = await deps.findLog(automation.id, job.commentId);
     const dmAlreadySent = existing?.status === "SENT";
     const publicAlreadySent = Boolean(existing?.publicReplySentAt);
+    let publicReplyFailure: unknown = null;
     if (
       dmAlreadySent &&
       (publicAlreadySent || !automation.publicReplyEnabled)
@@ -254,13 +261,22 @@ export async function processFacebookComment(
           publicReplyError: null,
         });
       } catch (error) {
+        publicReplyFailure = error;
         await deps.updateLog(automation.id, job.commentId, {
           publicReplyError: formatError(error),
         });
       }
     }
 
-    if (dmAlreadySent) continue;
+    if (dmAlreadySent) {
+      if (
+        publicReplyFailure &&
+        shouldRetryFacebookSend(publicReplyFailure)
+      ) {
+        throw publicReplyFailure;
+      }
+      continue;
+    }
 
     const otherSent = await deps.findOtherSentLog(
       automation.id,
@@ -302,27 +318,23 @@ export async function processFacebookComment(
     }
 
     try {
-      const primaryLink = automation.trackedLinks[0];
-      const recipientTrackedUrl = primaryLink
-        ? (() => {
-            const url = new URL(buildTrackedUrl(primaryLink.slug));
-            url.searchParams.set(
-              "ref",
-              deps.signRecipientReference(log.id)
-            );
-            return url.toString();
-          })()
-        : undefined;
       const message = renderMessageWithTracking({
-        message: automation.dmMessage,
+        message:
+          automation.openingDmEnabled && automation.openingDmMessage?.trim()
+            ? automation.openingDmMessage
+            : "Hey! Tap below and I’ll send you the link.",
         commenterName: job.commenterName,
-        trackedLinks: automation.trackedLinks,
-        trackedUrl: recipientTrackedUrl,
+        trackedLinks: [],
       });
       const result = await deps.sendPrivateReply(
         accessToken,
+        automation.facebookPage.pageId,
         job.commentId,
-        message
+        message,
+        automation.openingDmButtonLabel?.trim() ||
+          automation.trackedLinks[0]?.label?.trim() ||
+          "View link",
+        `facebook_reveal:${deps.signRecipientReference(log.id)}`
       );
       await deps.updateLog(automation.id, job.commentId, {
         status: "SENT",
@@ -340,7 +352,15 @@ export async function processFacebookComment(
         attempts: attemptsMade + 1,
         errorMessage: formatError(error),
       });
-      throw error;
+      if (shouldRetryFacebookSend(error)) throw error;
+      continue;
+    }
+
+    if (
+      publicReplyFailure &&
+      shouldRetryFacebookSend(publicReplyFailure)
+    ) {
+      throw publicReplyFailure;
     }
   }
 }

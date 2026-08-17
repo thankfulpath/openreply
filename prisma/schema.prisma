@@ -253,19 +253,22 @@ model DmLog {
   instagramAccountId String?
   facebookPageId     String?
 
-  commenterId         String
-  commenterName       String?
-  commentText         String
-  commentId           String
-  matchedKeyword      String?
-  status              DmStatus  @default(PENDING)
-  attempts            Int       @default(0)
-  dmSentAt            DateTime?
-  errorMessage        String?
-  facebookRecipientId String?
-  followUpQueuedAt    DateTime?
-  followUpSentAt      DateTime?
-  followUpError       String?
+  commenterId           String
+  commenterName         String?
+  commentText           String
+  commentId             String
+  matchedKeyword        String?
+  status                DmStatus  @default(PENDING)
+  attempts              Int       @default(0)
+  dmSentAt              DateTime?
+  errorMessage          String?
+  facebookRecipientId   String?
+  facebookInteractionAt DateTime?
+  linkDeliveredAt       DateTime?
+  linkDeliveryError     String?
+  followUpQueuedAt      DateTime?
+  followUpSentAt        DateTime?
+  followUpError         String?
 
   // The public comment reply is delivered independently of the DM, so its
   // outcome is tracked separately. publicReplySentAt makes it idempotent across

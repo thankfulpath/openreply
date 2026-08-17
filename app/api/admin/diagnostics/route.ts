@@ -69,8 +69,10 @@ export async function GET() {
       where: {
         workspaceId,
         platform: "FACEBOOK",
-        followUpError: { not: null },
-        followUpSentAt: null,
+        OR: [
+          { linkDeliveryError: { not: null }, linkDeliveredAt: null },
+          { followUpError: { not: null }, followUpSentAt: null },
+        ],
       },
       orderBy: { updatedAt: "desc" },
       take: 10,
@@ -78,6 +80,8 @@ export async function GET() {
         id: true,
         platform: true,
         commentId: true,
+        linkDeliveryError: true,
+        linkDeliveredAt: true,
         followUpError: true,
         followUpSentAt: true,
         updatedAt: true,

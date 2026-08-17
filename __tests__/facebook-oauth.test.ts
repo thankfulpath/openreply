@@ -3,6 +3,7 @@ import {
   exchangeFacebookCode,
   exchangeForLongLivedFacebookToken,
   getFacebookAuthorizationUrl,
+  chooseConfiguredFacebookPage,
 } from "../lib/meta/facebook-oauth";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -41,6 +42,19 @@ describe("Facebook OAuth", () => {
       "pages_manage_metadata",
       "pages_messaging",
     ]);
+  });
+
+  it("selects only the exact configured Page ID", () => {
+    const pages = [
+      { id: "wrong", name: "Thankful Path", access_token: "wrong-token" },
+      { id: "103331758424249", name: "Thankful Path", access_token: "token" },
+    ];
+
+    expect(
+      chooseConfiguredFacebookPage(pages, "103331758424249")?.id
+    ).toBe("103331758424249");
+    expect(chooseConfiguredFacebookPage(pages, "missing")).toBeNull();
+    expect(chooseConfiguredFacebookPage(pages, undefined)).toBeNull();
   });
 
   it("exchanges the callback code without placing the app secret in a header", async () => {

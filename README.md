@@ -25,7 +25,7 @@ OpenReply is built around Meta's official Instagram private replies. It does not
 ## Features
 
 - Facebook Page comment-to-Messenger campaigns with Page webhook support,
-  public comment replies, encrypted Page tokens, and click-triggered follow-ups.
+  public comment replies, encrypted Page tokens, and Messenger-action follow-ups.
 - Keyword to DM. Match one or many keywords per post, whole-word or partial.
 - Optional public reply. Post a visible comment reply on top of the DM.
 - Tracked links. Swap a link for a tracked redirect and see clicks and CTR per campaign.

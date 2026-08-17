@@ -52,7 +52,7 @@ export function buildFacebookCommentJob(event: FacebookCommentEvent) {
   };
 }
 
-interface FacebookWebhookPayload {
+export interface FacebookWebhookPayload {
   object: string;
   entry?: Array<{
     id?: string;

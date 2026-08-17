@@ -3,6 +3,8 @@ import {
   getDMQueue,
   getRedisConnection,
   MESSAGE_JOB_NAME,
+  FACEBOOK_REVEAL_JOB_NAME,
+  FACEBOOK_WEBHOOK_JOB_NAME,
   POSTBACK_JOB_NAME,
   FOLLOWUP_JOB_NAME,
   type DmQueueJob,
@@ -10,7 +12,11 @@ import {
   type ProcessMessageJob,
   type ProcessPostbackJob,
   type ProcessFollowUpJob,
+  type ProcessFacebookRevealJob,
+  type ProcessFacebookWebhookJob,
 } from "./client";
+import { processFacebookReveal } from "./facebook-reveal";
+import { processFacebookWebhookIngest } from "./facebook-webhook-ingest";
 import { prisma } from "@/lib/db/client";
 import {
   MetaApiError,
@@ -1206,6 +1212,23 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 }
 
 async function processJob(job: Job<DmQueueJob>): Promise<void> {
+  if (job.name === FACEBOOK_WEBHOOK_JOB_NAME) {
+    const webhook = job.data as ProcessFacebookWebhookJob;
+    return processFacebookWebhookIngest({
+      webhookEventId: webhook.webhookEventId,
+      payload: webhook.payload as unknown as Parameters<
+        typeof processFacebookWebhookIngest
+      >[0]["payload"],
+    });
+  }
+  if (job.name === FACEBOOK_REVEAL_JOB_NAME) {
+    const reveal = job.data as ProcessFacebookRevealJob;
+    return processFacebookReveal({
+      dmLogId: reveal.dmLogId,
+      pageId: reveal.pageId,
+      userId: reveal.userId,
+    });
+  }
   if (job.name === POSTBACK_JOB_NAME) {
     return processPostback(job as Job<ProcessPostbackJob>);
   }
@@ -1236,7 +1259,16 @@ async function recordWorkerFailure(
   error: Error
 ) {
   try {
-    const instagramAccountId = job?.data.instagramAccountId;
+    const instagramAccountId =
+      job && "instagramAccountId" in job.data
+        ? job.data.instagramAccountId
+        : undefined;
+    const facebookPageId =
+      job && "facebookPageId" in job.data
+        ? job.data.facebookPageId
+        : job && "pageId" in job.data
+          ? job.data.pageId
+          : undefined;
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
     const account = instagramAccountId
@@ -1245,10 +1277,17 @@ async function recordWorkerFailure(
           select: { workspaceId: true },
         })
       : null;
+    const facebookPage = facebookPageId
+      ? await prisma.facebookPage.findUnique({
+          where: { pageId: facebookPageId },
+          select: { workspaceId: true },
+        })
+      : null;
 
     await prisma.operationalEvent.create({
       data: {
-        workspaceId: account?.workspaceId ?? null,
+        workspaceId:
+          account?.workspaceId ?? facebookPage?.workspaceId ?? null,
         source: "WORKER",
         level: "ERROR",
         message: `DM worker job ${job?.id ?? "unknown"} failed: ${error.message}`,
@@ -1256,6 +1295,7 @@ async function recordWorkerFailure(
           jobId: job?.id ?? null,
           attemptsMade: job?.attemptsMade ?? null,
           instagramAccountId: instagramAccountId ?? null,
+          facebookPageId: facebookPageId ?? null,
           commentId,
         },
       },

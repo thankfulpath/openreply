@@ -6,27 +6,15 @@ import { FACEBOOK_JOURNAL_CAMPAIGN } from "@/lib/facebook/journal-campaign";
 import {
   listManagedFacebookPages,
   subscribeFacebookPage,
-  type FacebookManagedPage,
 } from "@/lib/meta/facebook-client";
 import {
   exchangeFacebookCode,
   exchangeForLongLivedFacebookToken,
+  chooseConfiguredFacebookPage,
 } from "@/lib/meta/facebook-oauth";
 import { encryptToken, verifyOAuthState } from "@/lib/meta/oauth";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { canManageWorkspace } from "@/lib/workspace-access";
-
-function choosePage(pages: FacebookManagedPage[]) {
-  const configuredPageId = process.env.FACEBOOK_PAGE_ID?.trim();
-  if (configuredPageId) {
-    return pages.find((page) => page.id === configuredPageId) ?? null;
-  }
-
-  return (
-    pages.find((page) => page.name.trim().toLowerCase() === "thankful path") ??
-    (pages.length === 1 ? pages[0] : null)
-  );
-}
 
 async function ensureJournalCampaign(
   workspaceId: string,
@@ -58,9 +46,9 @@ async function ensureJournalCampaign(
     wholeWordMatch: defaults.wholeWordMatch,
     dmTriggerEnabled: false,
     dmMessage: defaults.dmMessage,
-    openingDmEnabled: false,
-    openingDmMessage: null,
-    openingDmButtonLabel: null,
+    openingDmEnabled: defaults.openingDmEnabled,
+    openingDmMessage: defaults.openingDmMessage,
+    openingDmButtonLabel: defaults.openingDmButtonLabel,
     linkButtonLabel: defaults.linkButtonLabel,
     requireFollow: false,
     followPromptMessage: null,
@@ -75,31 +63,8 @@ async function ensureJournalCampaign(
   };
 
   if (existing) {
-    await prisma.automation.update({
-      where: { id: existing.id },
-      data: campaignData,
-    });
-
-    const link = existing.trackedLinks[0];
-    if (link) {
-      await prisma.trackedLink.update({
-        where: { id: link.id },
-        data: {
-          label: defaults.linkButtonLabel,
-          destinationUrl: defaults.destinationUrl,
-        },
-      });
-    } else {
-      await prisma.trackedLink.create({
-        data: {
-          workspaceId,
-          automationId: existing.id,
-          slug: generateTrackedLinkSlug(),
-          label: defaults.linkButtonLabel,
-          destinationUrl: defaults.destinationUrl,
-        },
-      });
-    }
+    // Reconnecting refreshes credentials only. Never pause the campaign or
+    // overwrite copy/keywords/link edits made after the initial seed.
     return;
   }
 
@@ -149,7 +114,10 @@ export async function GET(request: NextRequest) {
     const shortLivedToken = await exchangeFacebookCode(code, redirectUri);
     const longLived = await exchangeForLongLivedFacebookToken(shortLivedToken);
     const pages = await listManagedFacebookPages(longLived.accessToken);
-    const page = choosePage(pages);
+    const page = chooseConfiguredFacebookPage(
+      pages,
+      process.env.FACEBOOK_PAGE_ID
+    );
 
     if (!page) {
       return NextResponse.redirect(`${baseUrl}/settings?facebook=page_not_found`);

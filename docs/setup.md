@@ -196,6 +196,11 @@ Open Settings in OpenReply and use **Connect Facebook Page**. The connection
 creates the Journal Facebook campaign paused so it can be tested before it is
 made active.
 
+The first private reply uses a `View on Amazon` quick reply. Its tap is handled
+inside Messenger, immediately delivers the tracked Amazon button, and starts
+the five-minute follow-up delay. An external web-link click alone is not used
+to open Meta's 24-hour response window.
+
 To test delivery without a real comment, click Test next to `comments`, then click Send to My Server. This is a two-step control. Clicking Test only previews the sample payload; the second button is what actually POSTs it to your endpoint. After sending, a row should appear in your `WebhookEvent` table.
 
 If your primary domain ever changes, update this callback URL to the new domain. A non-primary domain will 307-redirect the POST, and Meta does not reliably follow redirects, so webhooks silently stop.

@@ -1,7 +1,9 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
-import { sendFacebookDirectMessage } from "@/lib/meta/facebook-client";
-import { RateLimitError } from "@/lib/meta/client";
+import {
+  sendFacebookDirectMessage,
+  shouldRetryFacebookSend,
+} from "@/lib/meta/facebook-client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { renderMessageWithoutLink } from "@/lib/tracking/message";
 
@@ -9,6 +11,7 @@ interface FacebookFollowUpRecord {
   id: string;
   status: string;
   dmSentAt: Date | null;
+  facebookInteractionAt: Date | null;
   followUpSentAt: Date | null;
   facebookRecipientId: string | null;
   automation: {
@@ -48,6 +51,7 @@ const productionDeps: FacebookFollowUpDeps = {
         id: true,
         status: true,
         dmSentAt: true,
+        facebookInteractionAt: true,
         followUpSentAt: true,
         facebookRecipientId: true,
         automation: {
@@ -87,6 +91,7 @@ export async function processFacebookFollowUp(
     log.status !== "SENT" ||
     log.followUpSentAt ||
     !log.dmSentAt ||
+    !log.facebookInteractionAt ||
     !log.facebookRecipientId ||
     !log.facebookPage ||
     !log.automation.isActive ||
@@ -96,7 +101,10 @@ export async function processFacebookFollowUp(
     return;
   }
 
-  if (deps.now().getTime() - log.dmSentAt.getTime() > MESSENGER_RESPONSE_WINDOW_MS) {
+  if (
+    deps.now().getTime() - log.facebookInteractionAt.getTime() >
+    MESSENGER_RESPONSE_WINDOW_MS
+  ) {
     await deps.updateLog(dmLogId, {
       followUpError: "Messenger 24-hour response window expired",
     });
@@ -130,6 +138,6 @@ export async function processFacebookFollowUp(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Meta error";
     await deps.updateLog(dmLogId, { followUpError: message });
-    if (error instanceof RateLimitError) throw error;
+    if (shouldRetryFacebookSend(error)) throw error;
   }
 }

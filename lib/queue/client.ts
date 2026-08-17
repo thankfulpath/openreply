@@ -61,6 +61,18 @@ export interface ProcessFollowUpJob {
   commenterName?: string | null;
 }
 
+export interface ProcessFacebookRevealJob {
+  platform: "FACEBOOK";
+  dmLogId: string;
+  pageId: string;
+  userId: string;
+}
+
+export interface ProcessFacebookWebhookJob {
+  webhookEventId: string;
+  payload: Record<string, unknown>;
+}
+
 // An inbound DM from a user. Campaigns with `dmTriggerEnabled` whose keywords
 // match the text reply to the sender.
 export interface ProcessMessageJob {
@@ -73,12 +85,16 @@ export interface ProcessMessageJob {
 export type DmQueueJob =
   | ProcessCommentJob
   | ProcessPostbackJob
+  | ProcessFacebookRevealJob
+  | ProcessFacebookWebhookJob
   | ProcessFollowUpJob
   | ProcessMessageJob;
 
 export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
 export const MESSAGE_JOB_NAME = "process-message";
+export const FACEBOOK_REVEAL_JOB_NAME = "process-facebook-reveal";
+export const FACEBOOK_WEBHOOK_JOB_NAME = "process-facebook-webhook";
 
 let dmQueue: Queue<DmQueueJob> | null = null;
 

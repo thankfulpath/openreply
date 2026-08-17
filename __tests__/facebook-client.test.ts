@@ -6,6 +6,7 @@ import {
   sendFacebookPrivateReply,
   sendFacebookPublicReply,
   subscribeFacebookPage,
+  unsubscribeFacebookPage,
 } from "../lib/meta/facebook-client";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -41,21 +42,35 @@ describe("Facebook Page Graph client", () => {
     });
   });
 
-  it("puts the tracked URL in the first private reply", async () => {
+  it("opens the private conversation with a qualifying quick reply", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ message_id: "message-1", recipient_id: "psid-1" })
     );
 
     const result = await sendFacebookPrivateReply(
       "page-token",
+      "page-1",
       "comment-1",
-      "Hey! Here you go: https://example.test/r/journal?ref=signed"
+      "Hey! Tap below and I’ll send the Amazon link.",
+      "View on Amazon",
+      "facebook_reveal:signed-reference"
     );
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toMatch(/graph\.facebook\.com\/v25\.0\/comment-1\/private_replies$/);
+    expect(String(url)).toMatch(/graph\.facebook\.com\/v25\.0\/page-1\/messages$/);
     expect(JSON.parse(String(init?.body))).toEqual({
-      message: "Hey! Here you go: https://example.test/r/journal?ref=signed",
+      recipient: { comment_id: "comment-1" },
+      messaging_type: "RESPONSE",
+      message: {
+        text: "Hey! Tap below and I’ll send the Amazon link.",
+        quick_replies: [
+          {
+            content_type: "text",
+            title: "View on Amazon",
+            payload: "facebook_reveal:signed-reference",
+          },
+        ],
+      },
     });
     expect(result).toEqual({ message_id: "message-1", recipient_id: "psid-1" });
   });
@@ -142,5 +157,18 @@ describe("Facebook Page Graph client", () => {
     expect(String(init?.body)).toBe(
       "subscribed_fields=feed%2Cmessages%2Cmessaging_postbacks%2Cmessage_reads"
     );
+  });
+
+  it("unsubscribes the Page before a local disconnect", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await unsubscribeFacebookPage("page-token", "page-1");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(
+      /graph\.facebook\.com\/v25\.0\/page-1\/subscribed_apps$/
+    );
+    expect(init?.method).toBe("DELETE");
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer page-token" });
   });
 });

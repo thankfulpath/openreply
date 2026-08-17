@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPrisma, mockQueue } = vi.hoisted(() => ({
+const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     trackedLink: {
       findUnique: vi.fn(),
@@ -10,19 +10,12 @@ const { mockPrisma, mockQueue } = vi.hoisted(() => ({
     },
     dmLog: {
       findFirst: vi.fn(),
-      updateMany: vi.fn(),
     },
   },
-  mockQueue: { add: vi.fn() },
 }));
 
 vi.mock("@/lib/db/client", () => ({
   prisma: mockPrisma,
-}));
-
-vi.mock("@/lib/queue/client", () => ({
-  FOLLOWUP_JOB_NAME: "process-followup",
-  getDMQueue: () => mockQueue,
 }));
 
 import { GET } from "../app/r/[slug]/route";
@@ -77,7 +70,7 @@ describe("tracked link redirect route", () => {
     });
   });
 
-  it("records a Facebook recipient click and schedules one delayed follow-up", async () => {
+  it("records a Facebook recipient click without opening the Messenger window", async () => {
     mockPrisma.trackedLink.findUnique.mockResolvedValue({
       id: "link_123",
       workspaceId: "workspace_123",
@@ -100,9 +93,7 @@ describe("tracked link redirect route", () => {
         followUpDelayMinutes: 5,
       },
     });
-    mockPrisma.dmLog.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.linkClick.create.mockResolvedValue({});
-    mockQueue.add.mockResolvedValue({});
     const ref = signRecipientReference("log_123", "test-secret");
 
     const response = await GET(
@@ -121,19 +112,6 @@ describe("tracked link redirect route", () => {
         dmLogId: "log_123",
       }),
     });
-    expect(mockQueue.add).toHaveBeenCalledWith(
-      "process-followup",
-      expect.objectContaining({
-        platform: "FACEBOOK",
-        dmLogId: "log_123",
-        automationId: "automation_123",
-        userId: "psid_123",
-      }),
-      {
-        delay: 300000,
-        jobId: "followup_facebook_log_123",
-      }
-    );
   });
 
   it("redirects unknown slugs to the homepage without logging a click", async () => {

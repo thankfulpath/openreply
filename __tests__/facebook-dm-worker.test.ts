@@ -4,6 +4,7 @@ import {
   type FacebookAutomation,
   type FacebookCommentProcessorDeps,
 } from "../lib/queue/facebook-comment";
+import { PermissionError } from "../lib/meta/client";
 
 const automation: FacebookAutomation = {
   id: "automation-1",
@@ -12,7 +13,11 @@ const automation: FacebookAutomation = {
   keywords: ["JOURNAL"],
   matchAnyWord: false,
   wholeWordMatch: true,
-  dmMessage: "Hey! Thanks for your interest 💛 Here you go: {link}",
+  dmMessage: "Here you go 💛 You can see the journal on Amazon here: {link}",
+  openingDmEnabled: true,
+  openingDmMessage:
+    "Hey! Thanks for your interest in our gratitude journal 💛 Tap below and I’ll send you the Amazon link.",
+  openingDmButtonLabel: "View on Amazon",
   publicReplyEnabled: true,
   publicReplyMessage: "Sent it 💛 Check Messenger.",
   publicReplyMessages: [],
@@ -82,7 +87,7 @@ const job = {
 };
 
 describe("Facebook comment worker", () => {
-  it("sends one public reply and a first private reply containing the tracked link", async () => {
+  it("sends one public reply and a qualifying Messenger quick reply", async () => {
     const deps = createDeps();
 
     await processFacebookComment(job, 0, deps);
@@ -95,10 +100,11 @@ describe("Facebook comment worker", () => {
     expect(deps.sendPrivateReply).toHaveBeenCalledTimes(1);
     expect(deps.sendPrivateReply).toHaveBeenCalledWith(
       "page-token",
+      "page-1",
       "comment-1",
-      expect.stringMatching(
-        /^Hey! Thanks for your interest 💛 Here you go: https?:\/\/.*\/r\/journal-slug\?ref=[A-Za-z0-9._-]+$/
-      )
+      "Hey! Thanks for your interest in our gratitude journal 💛 Tap below and I’ll send you the Amazon link.",
+      "View on Amazon",
+      "facebook_reveal:signed-reference"
     );
     expect(deps.updateLog).toHaveBeenCalledWith(
       "automation-1",
@@ -149,5 +155,31 @@ describe("Facebook comment worker", () => {
         errorMessage: "Missing pages_messaging permission",
       })
     );
+  });
+
+  it("does not retry permanent permission failures", async () => {
+    const deps = createDeps({
+      sendPrivateReply: vi
+        .fn()
+        .mockRejectedValue(new PermissionError("Missing pages_messaging")),
+    });
+
+    await expect(processFacebookComment(job, 0, deps)).resolves.toBeUndefined();
+    expect(deps.updateLog).toHaveBeenCalledWith(
+      "automation-1",
+      "comment-1",
+      expect.objectContaining({ status: "FAILED" })
+    );
+  });
+
+  it("retries a transient public reply failure after the private reply succeeds", async () => {
+    const deps = createDeps({
+      sendPublicReply: vi.fn().mockRejectedValue(new TypeError("network down")),
+    });
+
+    await expect(processFacebookComment(job, 0, deps)).rejects.toThrow(
+      "network down"
+    );
+    expect(deps.sendPrivateReply).toHaveBeenCalledTimes(1);
   });
 });

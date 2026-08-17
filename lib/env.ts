@@ -49,6 +49,7 @@ export function getMissingInstagramOAuthEnv(): string[] {
 const FACEBOOK_OAUTH_ENV = [
   "FACEBOOK_APP_ID",
   "FACEBOOK_APP_SECRET",
+  "FACEBOOK_PAGE_ID",
   "ENCRYPTION_KEY",
   "NEXTAUTH_SECRET",
 ] as const;

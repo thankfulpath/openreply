@@ -1,5 +1,30 @@
 import { getMetaGraphApiVersion } from "@/lib/env";
-import { handleResponse } from "@/lib/meta/client";
+import {
+  handleResponse,
+  MetaApiError,
+  PermissionError,
+  RateLimitError,
+  TokenExpiredError,
+} from "@/lib/meta/client";
+
+export function shouldRetryFacebookSend(error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    /outside (?:the )?allowed (?:messaging )?window/i.test(error.message)
+  ) {
+    return false;
+  }
+  if (error instanceof RateLimitError) return true;
+  if (error instanceof PermissionError || error instanceof TokenExpiredError) {
+    return false;
+  }
+  if (error instanceof MetaApiError) {
+    return error.code >= 500 || error.code === 1 || error.code === 2;
+  }
+  // Fetch rejects network failures as TypeError. Unknown server/DB failures are
+  // safer to retry than to silently lose a user-requested message.
+  return true;
+}
 
 function facebookGraphBase(): string {
   return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
@@ -75,6 +100,20 @@ export async function subscribeFacebookPage(
   return handleResponse(response);
 }
 
+export async function unsubscribeFacebookPage(
+  pageAccessToken: string,
+  pageId: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(
+    `${facebookGraphBase()}/${pageId}/subscribed_apps`,
+    {
+      method: "DELETE",
+      headers: bearerHeaders(pageAccessToken),
+    }
+  );
+  return handleResponse(response);
+}
+
 export async function sendFacebookPublicReply(
   pageAccessToken: string,
   commentId: string,
@@ -85,11 +124,25 @@ export async function sendFacebookPublicReply(
 
 export async function sendFacebookPrivateReply(
   pageAccessToken: string,
+  pageId: string,
   commentId: string,
-  message: string
+  message: string,
+  quickReplyTitle: string,
+  quickReplyPayload: string
 ): Promise<{ message_id?: string; recipient_id?: string; id?: string }> {
-  return graphPost(pageAccessToken, `/${commentId}/private_replies`, {
-    message,
+  return graphPost(pageAccessToken, `/${pageId}/messages`, {
+    recipient: { comment_id: commentId },
+    messaging_type: "RESPONSE",
+    message: {
+      text: message,
+      quick_replies: [
+        {
+          content_type: "text",
+          title: quickReplyTitle.slice(0, 20),
+          payload: quickReplyPayload.slice(0, 1000),
+        },
+      ],
+    },
   });
 }
 

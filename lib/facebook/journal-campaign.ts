@@ -4,7 +4,11 @@ export const FACEBOOK_JOURNAL_CAMPAIGN = {
   matchAnyPost: true,
   wholeWordMatch: true,
   dmMessage:
-    "Hey! Thanks for your interest in our gratitude journal 💛 Here you go: {link}",
+    "Here you go 💛 You can see The Original Gratitude Journal on Amazon here: {link}",
+  openingDmEnabled: true,
+  openingDmMessage:
+    "Hey! Thanks for your interest in our gratitude journal 💛 Tap below and I’ll send you the Amazon link.",
+  openingDmButtonLabel: "View on Amazon",
   publicReplyEnabled: true,
   publicReplyMessage: "Sent it 💛 Check Messenger.",
   followUpEnabled: true,

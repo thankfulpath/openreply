@@ -5,6 +5,7 @@ import {
 } from "../lib/queue/facebook-follow-up";
 
 const sentAt = new Date("2026-08-16T19:00:00.000Z");
+const interactionAt = new Date("2026-08-16T19:59:00.000Z");
 
 function createDeps(
   overrides: Partial<FacebookFollowUpDeps> = {}
@@ -14,6 +15,7 @@ function createDeps(
       id: "log-1",
       status: "SENT",
       dmSentAt: sentAt,
+      facebookInteractionAt: interactionAt,
       followUpSentAt: null,
       facebookRecipientId: "psid-1",
       automation: {
@@ -63,6 +65,7 @@ describe("Facebook click follow-up", () => {
         id: "log-1",
         status: "SENT",
         dmSentAt: sentAt,
+        facebookInteractionAt: interactionAt,
         followUpSentAt: new Date("2026-08-16T19:05:00.000Z"),
         facebookRecipientId: "psid-1",
         automation: {
@@ -85,7 +88,7 @@ describe("Facebook click follow-up", () => {
 
   it("records a closed policy window without sending", async () => {
     const deps = createDeps({
-      now: () => new Date("2026-08-17T20:00:00.001Z"),
+      now: () => new Date("2026-08-17T19:59:00.001Z"),
     });
 
     await processFacebookFollowUp("log-1", deps);
@@ -107,5 +110,17 @@ describe("Facebook click follow-up", () => {
     expect(deps.updateLog).toHaveBeenCalledWith("log-1", {
       followUpError: "Message sent outside allowed window",
     });
+  });
+
+  it("retries transient network failures", async () => {
+    const deps = createDeps({
+      sendDirectMessage: vi
+        .fn()
+        .mockRejectedValue(new TypeError("network unavailable")),
+    });
+
+    await expect(processFacebookFollowUp("log-1", deps)).rejects.toThrow(
+      "network unavailable"
+    );
   });
 });

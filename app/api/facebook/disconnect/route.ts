@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { encryptToken } from "@/lib/meta/oauth";
+import { decryptToken, encryptToken } from "@/lib/meta/oauth";
+import { unsubscribeFacebookPage } from "@/lib/meta/facebook-client";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
@@ -33,13 +34,36 @@ export async function POST(request: NextRequest) {
 
   const page = await prisma.facebookPage.findFirst({
     where: { id: facebookPageId, workspaceId: context.workspaceId },
-    select: { id: true },
+    select: { id: true, pageId: true, accessToken: true },
   });
   if (!page) {
     return NextResponse.json(
       { success: false, error: "Facebook Page not found" },
       { status: 404 }
     );
+  }
+
+  try {
+    await unsubscribeFacebookPage(
+      decryptToken(page.accessToken),
+      page.pageId
+    );
+  } catch (error) {
+    await prisma.operationalEvent
+      .create({
+        data: {
+          source: "SYSTEM",
+          level: "WARNING",
+          workspaceId: context.workspaceId,
+          message: "Facebook Page webhook unsubscribe failed",
+          payload: {
+            pageId: page.pageId,
+            reason:
+              error instanceof Error ? error.message : "Unknown Meta error",
+          },
+        },
+      })
+      .catch(() => {});
   }
 
   await prisma.$transaction([

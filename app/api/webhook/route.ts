@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
 import {
   parseCommentEvents,
   parseMessageEvents,
@@ -8,12 +7,13 @@ import {
   parseReadEvents,
   verifyWebhookSignature,
 } from "@/lib/meta/webhook";
-import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
-import { Prisma } from "@/app/generated/prisma/client";
 import {
-  buildFacebookCommentJob,
-  parseFacebookCommentEvents,
-} from "@/lib/meta/facebook-webhook";
+  FACEBOOK_WEBHOOK_JOB_NAME,
+  getDMQueue,
+  MESSAGE_JOB_NAME,
+  POSTBACK_JOB_NAME,
+} from "@/lib/queue/client";
+import { Prisma } from "@/app/generated/prisma/client";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -84,23 +84,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const queue = getDMQueue();
-    const facebookCommentEvents = parseFacebookCommentEvents(
-      payload as Parameters<typeof parseFacebookCommentEvents>[0]
-    );
-
-    for (const event of facebookCommentEvents) {
-      const page = await prisma.facebookPage.findUnique({
-        where: { pageId: event.pageId },
-        select: { workspaceId: true },
-      });
-      if (!page) continue;
-
-      const queued = buildFacebookCommentJob(event);
-      await queue.add(queued.name, queued.data, { jobId: queued.jobId });
-      await prisma.webhookEvent.update({
-        where: { id: webhookEvent.id },
-        data: { workspaceId: page.workspaceId },
-      });
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "object" in payload &&
+      payload.object === "page"
+    ) {
+      await queue.add(
+        FACEBOOK_WEBHOOK_JOB_NAME,
+        {
+          webhookEventId: webhookEvent.id,
+          payload: payload as Record<string, unknown>,
+        },
+        {
+          jobId: `facebook_webhook_${webhookEvent.id}`,
+        }
+      );
+      return NextResponse.json({ success: true }, { status: 200 });
     }
 
     const commentEvents = parseCommentEvents(

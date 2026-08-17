@@ -42,6 +42,8 @@ interface DiagnosticsData {
     id: string;
     platform: "FACEBOOK";
     commentId: string;
+    linkDeliveryError: string | null;
+    linkDeliveredAt: string | null;
     followUpError: string | null;
     followUpSentAt: string | null;
     updatedAt: string;
@@ -286,7 +288,9 @@ export default function DiagnosticsPage() {
                   {item.automation.name}
                 </p>
                 <p className="mt-1 text-xs text-error">
-                  {item.followUpError ?? "Unknown Messenger error"}
+                  {item.linkDeliveryError ??
+                    item.followUpError ??
+                    "Unknown Messenger error"}
                 </p>
                 <p className="mt-1 text-xs text-muted">
                   {formatDate(item.updatedAt)} · Comment {item.commentId}

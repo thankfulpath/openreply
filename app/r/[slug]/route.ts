@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import {
-  FOLLOWUP_JOB_NAME,
-  getDMQueue,
-} from "@/lib/queue/client";
 import { verifyRecipientReference } from "@/lib/tracking/recipient-reference";
 import { getRequestIp, hashClickIp } from "@/lib/tracking/server";
 
@@ -53,11 +49,7 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
           facebookPageId: true,
           facebookRecipientId: true,
           automation: {
-            select: {
-              followUpEnabled: true,
-              followUpMessage: true,
-              followUpDelayMinutes: true,
-            },
+            select: { followUpEnabled: true },
           },
         },
       })
@@ -83,51 +75,6 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
       referrer: request.headers.get("referer"),
     },
   });
-
-  if (
-    recipientLog?.facebookPageId &&
-    recipientLog.facebookRecipientId &&
-    recipientLog.automation.followUpEnabled &&
-    recipientLog.automation.followUpMessage?.trim()
-  ) {
-    const queuedAt = new Date();
-    const claimed = await prisma.dmLog.updateMany({
-      where: {
-        id: recipientLog.id,
-        followUpQueuedAt: null,
-        followUpSentAt: null,
-      },
-      data: { followUpQueuedAt: queuedAt, followUpError: null },
-    });
-
-    if (claimed.count === 1) {
-      try {
-        await getDMQueue().add(
-          FOLLOWUP_JOB_NAME,
-          {
-            platform: "FACEBOOK",
-            facebookPageId: recipientLog.facebookPageId,
-            dmLogId: recipientLog.id,
-            automationId: recipientLog.automationId,
-            userId: recipientLog.facebookRecipientId,
-          },
-          {
-            delay:
-              Math.max(
-                0,
-                recipientLog.automation.followUpDelayMinutes ?? 0
-              ) * 60_000,
-            jobId: `followup_facebook_${recipientLog.id}`,
-          }
-        );
-      } catch {
-        await prisma.dmLog.updateMany({
-          where: { id: recipientLog.id, followUpQueuedAt: queuedAt },
-          data: { followUpQueuedAt: null },
-        });
-      }
-    }
-  }
 
   return NextResponse.redirect(trackedLink.destinationUrl, { status: 302 });
 }

@@ -39,9 +39,9 @@ under that comment.
 app's webhook fields. It does not change Page profile information.
 
 `pages_messaging`. A matching Page comment can receive one private Messenger
-reply containing the requested link. If the recipient interacts with the link,
-OpenReply may send the configured follow-up inside Meta's allowed messaging
-window.
+reply with a quick-reply button. Tapping that Messenger button records the
+recipient's interaction, delivers the requested tracked link, and may schedule
+the configured follow-up inside Meta's allowed messaging window.
 
 ## Screencast script
 
