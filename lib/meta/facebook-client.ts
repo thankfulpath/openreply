@@ -78,7 +78,9 @@ export async function getFacebookPageById(
   pageId: string
 ): Promise<FacebookManagedPage> {
   const params = new URLSearchParams({
-    fields: "id,name,access_token,tasks",
+    // The Page node exposes a Page token, but not the `tasks` field accepted by
+    // /me/accounts. Asking for tasks here makes Meta reject the whole fallback.
+    fields: "id,name,access_token",
   });
   const response = await fetch(
     `${facebookGraphBase()}/${encodeURIComponent(pageId)}?${params.toString()}`,

@@ -154,7 +154,6 @@ describe("Facebook Page Graph client", () => {
         id: "103331758424249",
         name: "Thankful Path",
         access_token: "page-token",
-        tasks: ["MODERATE", "MESSAGING"],
       })
     );
 
@@ -166,12 +165,14 @@ describe("Facebook Page Graph client", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toContain("/103331758424249?");
     expect(String(url)).not.toContain("user-token");
+    expect(new URL(String(url)).searchParams.get("fields")).toBe(
+      "id,name,access_token"
+    );
     expect(init?.headers).toMatchObject({ Authorization: "Bearer user-token" });
     expect(page).toEqual({
       id: "103331758424249",
       name: "Thankful Path",
       access_token: "page-token",
-      tasks: ["MODERATE", "MESSAGING"],
     });
   });
 
