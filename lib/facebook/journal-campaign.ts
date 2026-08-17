@@ -8,7 +8,7 @@ export const FACEBOOK_JOURNAL_CAMPAIGN = {
   openingDmEnabled: true,
   openingDmMessage:
     "Hey! Thanks for your interest in our gratitude journal 💛 Tap below and I’ll send you the Amazon link.",
-  openingDmButtonLabel: "View on Amazon",
+  openingDmButtonLabel: "Send me the link",
   publicReplyEnabled: true,
   publicReplyMessage: "Sent it 💛 Check Messenger.",
   followUpEnabled: true,
