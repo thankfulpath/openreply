@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPrisma } = vi.hoisted(() => ({
+const { mockPrisma, mockQueue } = vi.hoisted(() => ({
   mockPrisma: {
     trackedLink: {
       findUnique: vi.fn(),
@@ -8,17 +8,29 @@ const { mockPrisma } = vi.hoisted(() => ({
     linkClick: {
       create: vi.fn(),
     },
+    dmLog: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+    },
   },
+  mockQueue: { add: vi.fn() },
 }));
 
 vi.mock("@/lib/db/client", () => ({
   prisma: mockPrisma,
 }));
 
+vi.mock("@/lib/queue/client", () => ({
+  FOLLOWUP_JOB_NAME: "process-followup",
+  getDMQueue: () => mockQueue,
+}));
+
 import { GET } from "../app/r/[slug]/route";
+import { signRecipientReference } from "../lib/tracking/recipient-reference";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("NEXTAUTH_SECRET", "test-secret");
 });
 
 describe("tracked link redirect route", () => {
@@ -29,7 +41,9 @@ describe("tracked link redirect route", () => {
       automationId: "automation_123",
       destinationUrl: "https://example.com/offer",
       automation: {
+        platform: "INSTAGRAM",
         instagramAccountId: "instagram_account_123",
+        facebookPageId: null,
       },
     });
     mockPrisma.linkClick.create.mockResolvedValue({});
@@ -61,6 +75,65 @@ describe("tracked link redirect route", () => {
         referrer: "https://instagram.com/",
       }),
     });
+  });
+
+  it("records a Facebook recipient click and schedules one delayed follow-up", async () => {
+    mockPrisma.trackedLink.findUnique.mockResolvedValue({
+      id: "link_123",
+      workspaceId: "workspace_123",
+      automationId: "automation_123",
+      destinationUrl: "https://taap.it/Journal",
+      automation: {
+        platform: "FACEBOOK",
+        instagramAccountId: null,
+        facebookPageId: "facebook_page_row_123",
+      },
+    });
+    mockPrisma.dmLog.findFirst.mockResolvedValue({
+      id: "log_123",
+      automationId: "automation_123",
+      facebookPageId: "facebook_page_row_123",
+      facebookRecipientId: "psid_123",
+      automation: {
+        followUpEnabled: true,
+        followUpMessage: "Hey! Did you get a chance to look at the journal?",
+        followUpDelayMinutes: 5,
+      },
+    });
+    mockPrisma.dmLog.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.linkClick.create.mockResolvedValue({});
+    mockQueue.add.mockResolvedValue({});
+    const ref = signRecipientReference("log_123", "test-secret");
+
+    const response = await GET(
+      new Request(
+        `https://openreply-pied.vercel.app/r/journal?ref=${encodeURIComponent(ref)}`
+      ) as Parameters<typeof GET>[0],
+      { params: Promise.resolve({ slug: "journal" }) }
+    );
+
+    expect(response.headers.get("location")).toBe("https://taap.it/Journal");
+    expect(mockPrisma.linkClick.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platform: "FACEBOOK",
+        instagramAccountId: null,
+        facebookPageId: "facebook_page_row_123",
+        dmLogId: "log_123",
+      }),
+    });
+    expect(mockQueue.add).toHaveBeenCalledWith(
+      "process-followup",
+      expect.objectContaining({
+        platform: "FACEBOOK",
+        dmLogId: "log_123",
+        automationId: "automation_123",
+        userId: "psid_123",
+      }),
+      {
+        delay: 300000,
+        jobId: "followup_facebook_log_123",
+      }
+    );
   });
 
   it("redirects unknown slugs to the homepage without logging a click", async () => {

@@ -66,28 +66,34 @@ export function renderMessageWithTracking({
   commenterName,
   trackedLinks,
   baseUrl,
+  trackedUrl,
 }: {
   message: string;
   commenterName?: string | null;
   trackedLinks?: MessageTrackedLink[];
   baseUrl?: string;
+  trackedUrl?: string;
 }) {
   let rendered = message.replace(/\{username\}/gi, commenterName ?? "there");
   const primaryLink = trackedLinks?.[0];
 
   if (!primaryLink) return rendered;
 
-  const trackedUrl = buildTrackedUrl(primaryLink.slug, baseUrl);
+  const resolvedTrackedUrl =
+    trackedUrl ?? buildTrackedUrl(primaryLink.slug, baseUrl);
 
   if (/\{link\}/i.test(rendered)) {
-    return rendered.replace(/\{link\}/gi, trackedUrl);
+    return rendered.replace(/\{link\}/gi, resolvedTrackedUrl);
   }
 
   if (rendered.includes(primaryLink.destinationUrl)) {
-    rendered = rendered.replaceAll(primaryLink.destinationUrl, trackedUrl);
+    rendered = rendered.replaceAll(
+      primaryLink.destinationUrl,
+      resolvedTrackedUrl
+    );
   } else {
     const withoutTrailingSlash = primaryLink.destinationUrl.replace(/\/$/, "");
-    rendered = rendered.replaceAll(withoutTrailingSlash, trackedUrl);
+    rendered = rendered.replaceAll(withoutTrailingSlash, resolvedTrackedUrl);
   }
 
   return rendered;

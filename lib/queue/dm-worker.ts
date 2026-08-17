@@ -38,6 +38,8 @@ import {
   renderMessageWithTracking,
   renderMessageWithoutLink,
 } from "@/lib/tracking/message";
+import { processFacebookComment } from "@/lib/queue/facebook-comment";
+import { processFacebookFollowUp } from "@/lib/queue/facebook-follow-up";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
@@ -899,6 +901,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
  */
 async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
+  if (!instagramAccountId || !userId) return;
 
   const automation = await prisma.automation.findFirst({
     where: {
@@ -1207,10 +1210,23 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
     return processPostback(job as Job<ProcessPostbackJob>);
   }
   if (job.name === FOLLOWUP_JOB_NAME) {
+    const followUp = job.data as ProcessFollowUpJob;
+    if (followUp.platform === "FACEBOOK" && followUp.dmLogId) {
+      return processFacebookFollowUp(followUp.dmLogId);
+    }
     return processFollowUp(job as Job<ProcessFollowUpJob>);
   }
   if (job.name === MESSAGE_JOB_NAME) {
     return processMessage(job as Job<ProcessMessageJob>);
+  }
+  if (
+    job.name === "process-comment" &&
+    (job.data as ProcessCommentJob).platform === "FACEBOOK"
+  ) {
+    return processFacebookComment(
+      job.data as ProcessCommentJob,
+      job.attemptsMade
+    );
   }
   return processComment(job as Job<ProcessCommentJob>);
 }

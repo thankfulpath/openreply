@@ -10,6 +10,10 @@ import {
   renderMessageWithTracking,
   replaceUrlWithTrackedPlaceholder,
 } from "../lib/tracking/message";
+import {
+  signRecipientReference,
+  verifyRecipientReference,
+} from "../lib/tracking/recipient-reference";
 
 describe("tracked link messages", () => {
   it("extracts a destination URL and replaces it with the tracked placeholder", () => {
@@ -76,6 +80,35 @@ describe("tracked link messages", () => {
     expect(buildTrackedUrl("abc123", "https://manychat-alternative.com/")).toBe(
       "https://manychat-alternative.com/r/abc123"
     );
+  });
+
+  it("uses a recipient-specific tracked URL when supplied", () => {
+    expect(
+      renderMessageWithTracking({
+        message: "Here you go: {link}",
+        trackedLinks: [
+          {
+            slug: "abc123",
+            destinationUrl: "https://example.com/guide",
+          },
+        ],
+        trackedUrl:
+          "https://manychat-alternative.com/r/abc123?ref=signed-reference",
+      })
+    ).toBe(
+      "Here you go: https://manychat-alternative.com/r/abc123?ref=signed-reference"
+    );
+  });
+
+  it("signs an opaque DM log reference and rejects tampering", () => {
+    const token = signRecipientReference("log_123", "test-secret");
+
+    expect(token).not.toContain("log_123");
+    expect(verifyRecipientReference(token, "test-secret")).toEqual({
+      dmLogId: "log_123",
+    });
+    expect(verifyRecipientReference(`${token}x`, "test-secret")).toBeNull();
+    expect(verifyRecipientReference(token, "wrong-secret")).toBeNull();
   });
 });
 
