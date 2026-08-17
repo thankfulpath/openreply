@@ -10,6 +10,10 @@ import {
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
+import {
+  buildFacebookCommentJob,
+  parseFacebookCommentEvents,
+} from "@/lib/meta/facebook-webhook";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -79,10 +83,29 @@ export async function POST(request: NextRequest) {
   });
 
   try {
+    const queue = getDMQueue();
+    const facebookCommentEvents = parseFacebookCommentEvents(
+      payload as Parameters<typeof parseFacebookCommentEvents>[0]
+    );
+
+    for (const event of facebookCommentEvents) {
+      const page = await prisma.facebookPage.findUnique({
+        where: { pageId: event.pageId },
+        select: { workspaceId: true },
+      });
+      if (!page) continue;
+
+      const queued = buildFacebookCommentJob(event);
+      await queue.add(queued.name, queued.data, { jobId: queued.jobId });
+      await prisma.webhookEvent.update({
+        where: { id: webhookEvent.id },
+        data: { workspaceId: page.workspaceId },
+      });
+    }
+
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
-    const queue = getDMQueue();
 
     for (const event of commentEvents) {
       const account = await prisma.instagramAccount.findUnique({

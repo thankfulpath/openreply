@@ -21,9 +21,13 @@ export function getRedisConnection(): Redis {
 // ─── DM Queue ───────────────────────────────────────────────────────────────────
 
 export type CommentSource = "WEBHOOK" | "POLLING";
+export type QueuePlatform = "INSTAGRAM" | "FACEBOOK";
 
 export interface ProcessCommentJob {
-  instagramAccountId: string;
+  platform?: QueuePlatform;
+  accountId?: string;
+  instagramAccountId?: string;
+  facebookPageId?: string;
   commentId: string;
   commentText: string;
   commenterId: string;
