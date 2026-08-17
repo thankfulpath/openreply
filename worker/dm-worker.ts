@@ -1,6 +1,7 @@
 import { createDMWorker } from "@/lib/queue/dm-worker";
 import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
 import { reconcileComments } from "@/lib/polling/comment-reconciler";
+import { reconcileFacebookComments } from "@/lib/polling/facebook-comment-reconciler";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -31,11 +32,19 @@ void heartbeat();
 const heartbeatTimer = setInterval(() => void heartbeat(), HEARTBEAT_INTERVAL_MS);
 
 async function poll() {
-  try {
-    await reconcileComments();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[DM Worker] Comment reconciliation failed:", message);
+  const sweeps = await Promise.allSettled([
+    reconcileComments(),
+    reconcileFacebookComments(),
+  ]);
+  for (const [index, result] of sweeps.entries()) {
+    if (result.status === "fulfilled") continue;
+    const message =
+      result.reason instanceof Error ? result.reason.message : "Unknown error";
+    const platform = index === 0 ? "Instagram" : "Facebook";
+    console.error(
+      `[DM Worker] ${platform} comment reconciliation failed:`,
+      message
+    );
   }
 }
 

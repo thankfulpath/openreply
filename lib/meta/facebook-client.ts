@@ -51,6 +51,20 @@ async function graphPost<T>(
   return handleResponse<T>(response);
 }
 
+async function graphGet<T>(
+  accessToken: string,
+  path: string,
+  params?: URLSearchParams
+): Promise<T> {
+  const query = params?.toString();
+  const response = await fetch(
+    `${facebookGraphBase()}${path}${query ? `?${query}` : ""}`,
+    { headers: bearerHeaders(accessToken) }
+  );
+
+  return handleResponse<T>(response);
+}
+
 export interface FacebookManagedPage {
   id: string;
   name: string;
@@ -128,6 +142,52 @@ export async function unsubscribeFacebookPage(
     }
   );
   return handleResponse(response);
+}
+
+export interface FacebookPagePost {
+  id: string;
+  created_time?: string;
+}
+
+export interface FacebookPageComment {
+  id: string;
+  message?: string;
+  created_time: string;
+  from?: { id?: string; name?: string };
+}
+
+export async function getRecentFacebookPagePosts(
+  pageAccessToken: string,
+  pageId: string,
+  limit = 10
+): Promise<FacebookPagePost[]> {
+  const params = new URLSearchParams({
+    fields: "id,created_time",
+    limit: String(limit),
+  });
+  const result = await graphGet<{ data?: FacebookPagePost[] }>(
+    pageAccessToken,
+    `/${encodeURIComponent(pageId)}/feed`,
+    params
+  );
+  return result.data ?? [];
+}
+
+export async function getRecentFacebookPostComments(
+  pageAccessToken: string,
+  postId: string
+): Promise<FacebookPageComment[]> {
+  const params = new URLSearchParams({
+    fields: "id,message,created_time,from",
+    order: "reverse_chronological",
+    limit: "100",
+  });
+  const result = await graphGet<{ data?: FacebookPageComment[] }>(
+    pageAccessToken,
+    `/${encodeURIComponent(postId)}/comments`,
+    params
+  );
+  return result.data ?? [];
 }
 
 export async function sendFacebookPublicReply(

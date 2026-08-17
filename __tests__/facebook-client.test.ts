@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getFacebookPageById,
+  getRecentFacebookPagePosts,
+  getRecentFacebookPostComments,
   listManagedFacebookPages,
   sendFacebookDirectMessage,
   sendFacebookDirectMessageWithLinkButton,
@@ -199,5 +201,71 @@ describe("Facebook Page Graph client", () => {
     );
     expect(init?.method).toBe("DELETE");
     expect(init?.headers).toMatchObject({ Authorization: "Bearer page-token" });
+  });
+
+  it("lists recent Page posts for the polling safety net", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            id: "page-1_post-1",
+            created_time: "2026-08-17T12:24:51+0000",
+          },
+        ],
+      })
+    );
+
+    const posts = await getRecentFacebookPagePosts(
+      "page-token",
+      "page-1",
+      10
+    );
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/page-1/feed?");
+    expect(new URL(String(url)).searchParams.get("fields")).toBe(
+      "id,created_time"
+    );
+    expect(new URL(String(url)).searchParams.get("limit")).toBe("10");
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer page-token" });
+    expect(posts).toEqual([
+      { id: "page-1_post-1", created_time: "2026-08-17T12:24:51+0000" },
+    ]);
+  });
+
+  it("lists recent comments on a Page post without putting the token in the URL", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            id: "post-1_comment-1",
+            message: "JOURNAL",
+            created_time: "2026-08-17T12:26:49+0000",
+            from: { id: "person-1", name: "Sergei Imanov" },
+          },
+        ],
+      })
+    );
+
+    const comments = await getRecentFacebookPostComments(
+      "page-token",
+      "page-1_post-1"
+    );
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/page-1_post-1/comments?");
+    expect(String(url)).not.toContain("page-token");
+    expect(new URL(String(url)).searchParams.get("fields")).toBe(
+      "id,message,created_time,from"
+    );
+    expect(new URL(String(url)).searchParams.get("order")).toBe(
+      "reverse_chronological"
+    );
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer page-token" });
+    expect(comments[0]).toMatchObject({
+      id: "post-1_comment-1",
+      message: "JOURNAL",
+      from: { id: "person-1", name: "Sergei Imanov" },
+    });
   });
 });
