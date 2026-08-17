@@ -204,6 +204,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       // Match campaigns bound to this specific post, plus any-post campaigns.
       OR: [{ postId: mediaId }, { matchAnyPost: true }],
       isActive: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
       instagramAccount: {
         instagramId: instagramAccountId,
       },
@@ -224,6 +226,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
+    if (!automation.instagramAccount || !automation.instagramAccountId) {
+      continue;
+    }
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
@@ -688,7 +693,12 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   );
 
   const automation = await prisma.automation.findFirst({
-    where: { id: automationId, isActive: true },
+    where: {
+      id: automationId,
+      isActive: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
+    },
     include: {
       instagramAccount: true,
       workspace: true,
@@ -701,6 +711,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   if (
     !automation ||
+    !automation.instagramAccount ||
+    !automation.instagramAccountId ||
     automation.instagramAccount.instagramId !== instagramAccountId ||
     !automation.instagramAccount.accessToken
   ) {
@@ -797,7 +809,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   try {
     await sendRevealDirectMessage(
       accessToken,
-      automation,
+      { ...automation, instagramAccount: automation.instagramAccount },
       userId,
       commenterName,
       "postback"
@@ -888,12 +900,18 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
 
   const automation = await prisma.automation.findFirst({
-    where: { id: automationId, isActive: true },
+    where: {
+      id: automationId,
+      isActive: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
+    },
     include: { instagramAccount: true },
   });
 
   if (
     !automation ||
+    !automation.instagramAccount ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
     automation.instagramAccount.instagramId !== instagramAccountId ||
@@ -942,6 +960,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     where: {
       dmTriggerEnabled: true,
       isActive: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
       instagramAccount: { instagramId: instagramAccountId },
     },
     include: {
@@ -958,6 +978,9 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const dedupeId = `dm:${messageId}`;
 
   for (const automation of automations) {
+    if (!automation.instagramAccount || !automation.instagramAccountId) {
+      continue;
+    }
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(
@@ -1103,7 +1126,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       } else {
         await sendRevealDirectMessage(
           accessToken,
-          automation,
+          { ...automation, instagramAccount: automation.instagramAccount },
           senderId,
           commenterName,
           "message trigger"

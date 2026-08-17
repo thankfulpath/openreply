@@ -165,7 +165,7 @@ export async function getCampaignReportBySlug(shareSlug: string) {
       isActive: automation.isActive,
       createdAt: automation.createdAt,
       updatedAt: automation.updatedAt,
-      instagramUsername: automation.instagramAccount.username,
+      instagramUsername: automation.instagramAccount?.username ?? null,
     },
     metrics: {
       sent: statusSummary.sent,

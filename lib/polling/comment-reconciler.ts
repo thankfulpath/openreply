@@ -63,7 +63,11 @@ function errMessage(error: unknown): string {
 /** One reconciliation pass across every active campaign. */
 export async function reconcileComments(): Promise<void> {
   const automations = await prisma.automation.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
+    },
     select: {
       id: true,
       name: true,
@@ -89,7 +93,16 @@ export async function reconcileComments(): Promise<void> {
   const tokenCache = new Map<string, string | null>();
 
   for (const automation of automations) {
-    const stat = await sweepCampaign(automation, sinceMs, tokenCache).catch(
+    if (!automation.instagramAccount) continue;
+    const instagramAutomation = {
+      ...automation,
+      instagramAccount: automation.instagramAccount,
+    };
+    const stat = await sweepCampaign(
+      instagramAutomation,
+      sinceMs,
+      tokenCache
+    ).catch(
       (error): SweepStat => ({
         campaign: automation.name,
         keywords: automation.keywords.join(","),

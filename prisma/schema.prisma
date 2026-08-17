@@ -18,11 +18,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  workspaceMembers  WorkspaceMember[]
-  sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
+  accounts         Account[]
+  sessions         Session[]
+  ownedWorkspaces  Workspace[]           @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+  sentInvitations  WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
 }
 
 model Account {
@@ -78,6 +78,7 @@ model Workspace {
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
   instagramAccounts InstagramAccount[]
+  facebookPages     FacebookPage[]
   automations       Automation[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
@@ -125,22 +126,43 @@ model WorkspaceInvitation {
 }
 
 model InstagramAccount {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   workspaceId       String
-  instagramId       String   @unique
+  instagramId       String    @unique
   username          String
   name              String?
   accessToken       String
   tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean  @default(false)
-  connectedAt       DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  webhookSubscribed Boolean   @default(false)
+  connectedAt       DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automations Automation[]
-  dmLogs      DmLog[]
-  linkClicks  LinkClick[]
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations       Automation[]
+  dmLogs            DmLog[]
+  linkClicks        LinkClick[]
+  processedComments ProcessedComment[]
   followerSnapshots FollowerSnapshot[]
+
+  @@index([workspaceId])
+}
+
+model FacebookPage {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  pageId            String    @unique
+  name              String
+  accessToken       String
+  tokenExpiresAt    DateTime?
+  webhookSubscribed Boolean   @default(false)
+  connectedAt       DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automations       Automation[]
+  dmLogs            DmLog[]
+  linkClicks        LinkClick[]
+  processedComments ProcessedComment[]
 
   @@index([workspaceId])
 }
@@ -166,72 +188,82 @@ model FollowerSnapshot {
 }
 
 model Automation {
-  id                 String   @id @default(cuid())
+  id                 String             @id @default(cuid())
   workspaceId        String
-  instagramAccountId String
+  platform           AutomationPlatform @default(INSTAGRAM)
+  instagramAccountId String?
+  facebookPageId     String?
 
-  name           String
-  goal           String?
-  postId         String?
-  postUrl        String?
-  pendingNextReel Boolean @default(false)
-  matchAnyPost   Boolean @default(false)
-  keywords       String[]
-  matchAnyWord   Boolean @default(false)
+  name                    String
+  goal                    String?
+  postId                  String?
+  postUrl                 String?
+  pendingNextReel         Boolean  @default(false)
+  matchAnyPost            Boolean  @default(false)
+  keywords                String[]
+  matchAnyWord            Boolean  @default(false)
   // Also fire this campaign when someone sends a DM whose text matches the
   // keywords above. Independent of the post trigger — a DM has no media, so
   // postId / matchAnyPost do not apply to it.
-  dmTriggerEnabled Boolean @default(false)
-  dmMessage      String
-  openingDmEnabled     Boolean @default(false)
-  openingDmMessage     String?
-  openingDmButtonLabel String?
-  linkButtonLabel      String?
-  requireFollow           Boolean @default(false)
+  dmTriggerEnabled        Boolean  @default(false)
+  dmMessage               String
+  openingDmEnabled        Boolean  @default(false)
+  openingDmMessage        String?
+  openingDmButtonLabel    String?
+  linkButtonLabel         String?
+  requireFollow           Boolean  @default(false)
   followPromptMessage     String?
   followPromptButtonLabel String?
-  followUpEnabled Boolean @default(false)
-  followUpMessage String?
+  followUpEnabled         Boolean  @default(false)
+  followUpMessage         String?
   // Minutes to wait after the link is delivered before sending the follow-up.
   // 0 sends it right away.
-  followUpDelayMinutes Int @default(0)
-  publicReplyEnabled Boolean @default(false)
-  publicReplyMessage String?
-  publicReplyMessages String[] @default([])
-  isActive       Boolean @default(true)
-  wholeWordMatch Boolean @default(true)
-  reportShareSlug    String? @unique
-  reportShareEnabled Boolean @default(true)
+  followUpDelayMinutes    Int      @default(0)
+  publicReplyEnabled      Boolean  @default(false)
+  publicReplyMessage      String?
+  publicReplyMessages     String[] @default([])
+  isActive                Boolean  @default(true)
+  wholeWordMatch          Boolean  @default(true)
+  reportShareSlug         String?  @unique
+  reportShareEnabled      Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
 
   @@index([workspaceId])
   @@index([instagramAccountId])
+  @@index([facebookPageId])
   @@index([postId])
 }
 
 model DmLog {
-  id                 String     @id @default(cuid())
+  id                 String             @id @default(cuid())
   workspaceId        String
   automationId       String
-  instagramAccountId String
+  platform           AutomationPlatform @default(INSTAGRAM)
+  instagramAccountId String?
+  facebookPageId     String?
 
-  commenterId   String
-  commenterName String?
-  commentText   String
-  commentId     String
-  matchedKeyword String?
-  status        DmStatus @default(PENDING)
-  attempts      Int      @default(0)
-  dmSentAt      DateTime?
-  errorMessage  String?
+  commenterId         String
+  commenterName       String?
+  commentText         String
+  commentId           String
+  matchedKeyword      String?
+  status              DmStatus  @default(PENDING)
+  attempts            Int       @default(0)
+  dmSentAt            DateTime?
+  errorMessage        String?
+  facebookRecipientId String?
+  followUpQueuedAt    DateTime?
+  followUpSentAt      DateTime?
+  followUpError       String?
 
   // The public comment reply is delivered independently of the DM, so its
   // outcome is tracked separately. publicReplySentAt makes it idempotent across
@@ -242,14 +274,17 @@ model DmLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation        @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
+  linkClicks       LinkClick[]
 
   @@unique([automationId, commentId])
   @@index([workspaceId])
   @@index([automationId])
   @@index([instagramAccountId])
+  @@index([facebookPageId])
   @@index([status])
 }
 
@@ -260,13 +295,19 @@ model DmLog {
 // this records all comments so the reconciler doesn't re-sweep non-matching
 // ones every cycle.
 model ProcessedComment {
-  id                 String   @id @default(cuid())
-  instagramAccountId String
-  commentId          String   @unique
+  id                 String             @id @default(cuid())
+  platform           AutomationPlatform @default(INSTAGRAM)
+  instagramAccountId String?
+  facebookPageId     String?
+  commentId          String             @unique
   source             String // "WEBHOOK" | "POLLING"
-  seenAt             DateTime @default(now())
+  seenAt             DateTime           @default(now())
+
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
 
   @@index([instagramAccountId])
+  @@index([facebookPageId])
 }
 
 model TrackedLink {
@@ -288,38 +329,45 @@ model TrackedLink {
 }
 
 model LinkClick {
-  id                 String   @id @default(cuid())
+  id                 String             @id @default(cuid())
   workspaceId        String
   automationId       String
-  instagramAccountId String
+  platform           AutomationPlatform @default(INSTAGRAM)
+  instagramAccountId String?
+  facebookPageId     String?
+  dmLogId            String?
   trackedLinkId      String
   ipHash             String?
   userAgent          String?
   referrer           String?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime           @default(now())
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
-  trackedLink      TrackedLink      @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation        @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  facebookPage     FacebookPage?     @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
+  dmLog            DmLog?            @relation(fields: [dmLogId], references: [id], onDelete: SetNull)
+  trackedLink      TrackedLink       @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([automationId])
   @@index([instagramAccountId])
+  @@index([facebookPageId])
+  @@index([dmLogId])
   @@index([trackedLinkId])
   @@index([createdAt])
   @@index([workspaceId, createdAt])
 }
 
 model WebhookEvent {
-  id          String        @id @default(cuid())
-  workspaceId String?
-  object      String?
-  payload     Json
-  status      WebhookStatus @default(PENDING)
+  id           String        @id @default(cuid())
+  workspaceId  String?
+  object       String?
+  payload      Json
+  status       WebhookStatus @default(PENDING)
   errorMessage String?
-  createdAt   DateTime      @default(now())
-  processedAt DateTime?
+  createdAt    DateTime      @default(now())
+  processedAt  DateTime?
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
@@ -328,13 +376,13 @@ model WebhookEvent {
 }
 
 model OperationalEvent {
-  id          String                @id @default(cuid())
+  id          String                 @id @default(cuid())
   workspaceId String?
   source      OperationalEventSource
-  level       OperationalEventLevel @default(INFO)
+  level       OperationalEventLevel  @default(INFO)
   message     String
   payload     Json?
-  createdAt   DateTime              @default(now())
+  createdAt   DateTime               @default(now())
   resolvedAt  DateTime?
 
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
@@ -349,6 +397,11 @@ enum WorkspaceRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum AutomationPlatform {
+  INSTAGRAM
+  FACEBOOK
 }
 
 enum WorkspaceInvitationStatus {

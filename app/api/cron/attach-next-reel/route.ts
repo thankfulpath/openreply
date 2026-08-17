@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
   }
 
   const pending = await prisma.automation.findMany({
-    where: { pendingNextReel: true },
+    where: {
+      pendingNextReel: true,
+      platform: "INSTAGRAM",
+      instagramAccountId: { not: null },
+    },
     include: { instagramAccount: true },
   });
 
@@ -39,6 +43,9 @@ export async function GET(request: NextRequest) {
     { account: (typeof pending)[number]["instagramAccount"]; automations: typeof pending }
   >();
   for (const automation of pending) {
+    if (!automation.instagramAccountId || !automation.instagramAccount) {
+      continue;
+    }
     const key = automation.instagramAccountId;
     const entry = byAccount.get(key);
     if (entry) entry.automations.push(automation);
