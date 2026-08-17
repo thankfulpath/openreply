@@ -2,7 +2,7 @@
 
 # OpenReply
 
-Open-sourced ManyChat for Instagram comment-to-DM automation.
+Open-sourced ManyChat for Instagram and Facebook comment-to-DM automation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/diwenne/openreply?style=flat&color=black)](https://github.com/diwenne/openreply/stargazers)
@@ -24,6 +24,8 @@ OpenReply is built around Meta's official Instagram private replies. It does not
 
 ## Features
 
+- Facebook Page comment-to-Messenger campaigns with Page webhook support,
+  public comment replies, encrypted Page tokens, and click-triggered follow-ups.
 - Keyword to DM. Match one or many keywords per post, whole-word or partial.
 - Optional public reply. Post a visible comment reply on top of the DM.
 - Tracked links. Swap a link for a tracked redirect and see clicks and CTR per campaign.

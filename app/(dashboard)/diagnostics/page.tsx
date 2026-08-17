@@ -30,10 +30,20 @@ interface DiagnosticsData {
   }>;
   dmFailures: Array<{
     id: string;
+    platform: "INSTAGRAM" | "FACEBOOK";
     status: string;
     commentId: string;
     commentText: string;
     errorMessage: string | null;
+    updatedAt: string;
+    automation: { name: string };
+  }>;
+  messengerFollowUpFailures: Array<{
+    id: string;
+    platform: "FACEBOOK";
+    commentId: string;
+    followUpError: string | null;
+    followUpSentAt: string | null;
     updatedAt: string;
     automation: { name: string };
   }>;
@@ -204,7 +214,7 @@ export default function DiagnosticsPage() {
                 <div key={item.id} className="border-b border-border pb-3 last:border-0">
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-                      {item.automation.name}
+                      {item.automation.name} · {item.platform}
                     </p>
                     <StatusBadge status={item.status} />
                   </div>
@@ -266,6 +276,28 @@ export default function DiagnosticsPage() {
         </Section>
 
       </div>
+
+      <Section title="Facebook Messenger Follow-up Failures">
+        {data?.messengerFollowUpFailures.length ? (
+          <div className="space-y-3">
+            {data.messengerFollowUpFailures.map((item) => (
+              <div key={item.id} className="border-b border-border pb-3 last:border-0">
+                <p className="text-sm font-semibold text-foreground">
+                  {item.automation.name}
+                </p>
+                <p className="mt-1 text-xs text-error">
+                  {item.followUpError ?? "Unknown Messenger error"}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {formatDate(item.updatedAt)} · Comment {item.commentId}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState label="No Facebook follow-up failures." />
+        )}
+      </Section>
 
       <Section title="Operational Event Timeline">
         {data?.operationalEvents.length ? (

@@ -97,7 +97,9 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `META_GRAPH_API_VERSION` | Graph API version, for example `v25.0`. |
 | `INSTAGRAM_APP_ID` | From the Meta app, see Step 6. |
 | `INSTAGRAM_APP_SECRET` | From the Meta app. |
+| `FACEBOOK_APP_ID` | The app ID from App settings, Basic. |
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
+| `FACEBOOK_PAGE_ID` | Optional but recommended. The exact Page to connect when the Meta user manages more than one Page. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
@@ -176,6 +178,23 @@ Still in the Instagram product, find the Configure webhooks step.
 - Verify token: the value of `WEBHOOK_VERIFY_TOKEN` from your environment
 - Click Verify and save. It should succeed immediately, because the app answers Meta's verification challenge. If the button is greyed out, click into the verify-token field and paste the token again; editing the callback URL often clears it.
 - Subscribe to the `comments` field.
+
+For Facebook Page comment-to-Messenger, add the same callback under the
+**Page** webhook object and subscribe to `feed`, `messages`,
+`messaging_postbacks`, and `message_reads`. The connecting Facebook profile
+must have full Page access. Register this OAuth redirect URI under Facebook
+Login settings:
+
+```
+https://your-app.vercel.app/api/facebook/callback
+```
+
+The Page connection requests `pages_show_list`, `pages_read_engagement`,
+`pages_read_user_content`, `pages_manage_engagement`,
+`pages_manage_metadata`, and `pages_messaging`.
+Open Settings in OpenReply and use **Connect Facebook Page**. The connection
+creates the Journal Facebook campaign paused so it can be tested before it is
+made active.
 
 To test delivery without a real comment, click Test next to `comments`, then click Send to My Server. This is a two-step control. Clicking Test only previews the sample payload; the second button is what actually POSTs it to your endpoint. After sending, a row should appear in your `WebhookEvent` table.
 

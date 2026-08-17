@@ -4,6 +4,7 @@ import { handleResponse } from "@/lib/meta/client";
 export const FACEBOOK_PAGE_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
+  "pages_read_user_content",
   "pages_manage_engagement",
   "pages_manage_metadata",
   "pages_messaging",

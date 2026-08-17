@@ -36,6 +36,7 @@ describe("Facebook OAuth", () => {
     expect(url.searchParams.get("scope")?.split(",")).toEqual([
       "pages_show_list",
       "pages_read_engagement",
+      "pages_read_user_content",
       "pages_manage_engagement",
       "pages_manage_metadata",
       "pages_messaging",
