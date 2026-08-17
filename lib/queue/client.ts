@@ -66,6 +66,7 @@ export interface ProcessFacebookRevealJob {
   dmLogId: string;
   pageId: string;
   userId: string;
+  interactionTimestamp: number;
 }
 
 export interface ProcessFacebookWebhookJob {

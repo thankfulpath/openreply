@@ -31,6 +31,12 @@ const {
     instagramAccount: {
       findUnique: vi.fn(),
     },
+    facebookPage: {
+      findUnique: vi.fn(),
+    },
+    webhookEvent: {
+      findUnique: vi.fn(),
+    },
     operationalEvent: {
       create: vi.fn(),
     },
@@ -130,7 +136,10 @@ vi.mock("bullmq", () => {
   };
 });
 
-import { createDMWorker } from "../lib/queue/dm-worker";
+import {
+  createDMWorker,
+  recordWorkerFailure,
+} from "../lib/queue/dm-worker";
 
 const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 
@@ -230,6 +239,8 @@ beforeEach(() => {
   mockPrisma.instagramAccount.findUnique.mockResolvedValue({
     workspaceId: "workspace_123",
   });
+  mockPrisma.facebookPage.findUnique.mockResolvedValue(null);
+  mockPrisma.webhookEvent.findUnique.mockResolvedValue(null);
   mockPrisma.operationalEvent.create.mockResolvedValue({});
   mockDecryptToken.mockReturnValue("decrypted_token");
   mockMatchKeywords.mockReturnValue({ matched: true, matchedKeyword: "LINK" });
@@ -1088,5 +1099,65 @@ describe("DM Worker — DM keyword trigger", () => {
         create: expect.objectContaining({ status: "FAILED" }),
       })
     );
+  });
+});
+
+describe("DM Worker — Facebook failure attribution", () => {
+  it("resolves the workspace and Page from a Facebook DM log", async () => {
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      workspaceId: "workspace_facebook",
+      facebookPage: { pageId: "page_123" },
+    });
+
+    await recordWorkerFailure(
+      {
+        id: "followup_job_1",
+        attemptsMade: 3,
+        data: {
+          platform: "FACEBOOK",
+          dmLogId: "dm_log_1",
+          automationId: "facebook-reveal",
+        },
+      } as never,
+      new Error("Messenger send failed")
+    );
+
+    expect(mockPrisma.operationalEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: "workspace_facebook",
+        payload: expect.objectContaining({
+          dmLogId: "dm_log_1",
+          facebookPageId: "page_123",
+        }),
+      }),
+    });
+  });
+
+  it("resolves the workspace from a failed webhook ingestion event", async () => {
+    mockPrisma.dmLog.findUnique.mockResolvedValue(null);
+    mockPrisma.webhookEvent.findUnique.mockResolvedValue({
+      workspaceId: "workspace_webhook",
+    });
+
+    await recordWorkerFailure(
+      {
+        id: "webhook_job_1",
+        attemptsMade: 3,
+        data: {
+          webhookEventId: "webhook_event_1",
+          payload: {},
+        },
+      } as never,
+      new Error("Webhook ingest failed")
+    );
+
+    expect(mockPrisma.operationalEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: "workspace_webhook",
+        payload: expect.objectContaining({
+          webhookEventId: "webhook_event_1",
+        }),
+      }),
+    });
   });
 });

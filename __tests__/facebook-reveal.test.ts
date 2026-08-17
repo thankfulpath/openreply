@@ -58,7 +58,12 @@ describe("Facebook View on Amazon reveal", () => {
     const deps = createDeps();
 
     await processFacebookReveal(
-      { dmLogId: "log-1", pageId: "page-1", userId: "psid-1" },
+      {
+        dmLogId: "log-1",
+        pageId: "page-1",
+        userId: "psid-1",
+        interactionTimestamp: now.getTime(),
+      },
       deps
     );
 
@@ -89,11 +94,53 @@ describe("Facebook View on Amazon reveal", () => {
     });
 
     await processFacebookReveal(
-      { dmLogId: "log-1", pageId: "page-1", userId: "psid-1" },
+      {
+        dmLogId: "log-1",
+        pageId: "page-1",
+        userId: "psid-1",
+        interactionTimestamp: now.getTime(),
+      },
       deps
     );
 
     expect(deps.sendLinkButton).not.toHaveBeenCalled();
     expect(deps.queueFollowUp).not.toHaveBeenCalled();
+  });
+
+  it("counts the five-minute delay from the Meta interaction timestamp", async () => {
+    const interactionAt = new Date(now.getTime() - 2 * 60_000);
+    const deps = createDeps();
+
+    await processFacebookReveal(
+      {
+        dmLogId: "log-1",
+        pageId: "page-1",
+        userId: "psid-1",
+        interactionTimestamp: interactionAt.getTime(),
+      },
+      deps
+    );
+
+    expect(deps.queueFollowUp).toHaveBeenCalledWith("log-1", 180_000);
+  });
+
+  it("rejects a qualifying interaction that reached the worker after 24 hours", async () => {
+    const deps = createDeps();
+
+    await processFacebookReveal(
+      {
+        dmLogId: "log-1",
+        pageId: "page-1",
+        userId: "psid-1",
+        interactionTimestamp: now.getTime() - 24 * 60 * 60 * 1000 - 1,
+      },
+      deps
+    );
+
+    expect(deps.sendLinkButton).not.toHaveBeenCalled();
+    expect(deps.queueFollowUp).not.toHaveBeenCalled();
+    expect(deps.updateLog).toHaveBeenCalledWith("log-1", {
+      linkDeliveryError: "Messenger interaction window expired before processing",
+    });
   });
 });

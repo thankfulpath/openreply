@@ -1227,6 +1227,7 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
       dmLogId: reveal.dmLogId,
       pageId: reveal.pageId,
       userId: reveal.userId,
+      interactionTimestamp: reveal.interactionTimestamp,
     });
   }
   if (job.name === POSTBACK_JOB_NAME) {
@@ -1254,7 +1255,7 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
   return processComment(job as Job<ProcessCommentJob>);
 }
 
-async function recordWorkerFailure(
+export async function recordWorkerFailure(
   job: Job<DmQueueJob> | undefined,
   error: Error
 ) {
@@ -1271,6 +1272,12 @@ async function recordWorkerFailure(
           : undefined;
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
+    const dmLogId =
+      job && "dmLogId" in job.data ? job.data.dmLogId : undefined;
+    const webhookEventId =
+      job && "webhookEventId" in job.data
+        ? job.data.webhookEventId
+        : undefined;
     const account = instagramAccountId
       ? await prisma.instagramAccount.findUnique({
           where: { instagramId: instagramAccountId },
@@ -1283,11 +1290,32 @@ async function recordWorkerFailure(
           select: { workspaceId: true },
         })
       : null;
+    const dmLog = dmLogId
+      ? await prisma.dmLog.findUnique({
+          where: { id: dmLogId },
+          select: {
+            workspaceId: true,
+            facebookPage: { select: { pageId: true } },
+          },
+        })
+      : null;
+    const webhookEvent = webhookEventId
+      ? await prisma.webhookEvent.findUnique({
+          where: { id: webhookEventId },
+          select: { workspaceId: true },
+        })
+      : null;
+    const resolvedFacebookPageId =
+      facebookPageId ?? dmLog?.facebookPage?.pageId ?? null;
 
     await prisma.operationalEvent.create({
       data: {
         workspaceId:
-          account?.workspaceId ?? facebookPage?.workspaceId ?? null,
+          account?.workspaceId ??
+          facebookPage?.workspaceId ??
+          dmLog?.workspaceId ??
+          webhookEvent?.workspaceId ??
+          null,
         source: "WORKER",
         level: "ERROR",
         message: `DM worker job ${job?.id ?? "unknown"} failed: ${error.message}`,
@@ -1295,7 +1323,9 @@ async function recordWorkerFailure(
           jobId: job?.id ?? null,
           attemptsMade: job?.attemptsMade ?? null,
           instagramAccountId: instagramAccountId ?? null,
-          facebookPageId: facebookPageId ?? null,
+          facebookPageId: resolvedFacebookPageId,
+          dmLogId: dmLogId ?? null,
+          webhookEventId: webhookEventId ?? null,
           commentId,
         },
       },

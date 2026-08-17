@@ -21,6 +21,7 @@ export interface FacebookPostbackEvent {
   pageId: string;
   userId: string;
   payload: string;
+  interactionTimestamp: number;
   mid?: string;
 }
 
@@ -69,6 +70,7 @@ export interface FacebookWebhookPayload {
       };
     }>;
     messaging?: Array<{
+      timestamp?: number;
       sender?: { id?: string };
       recipient?: { id?: string };
       message?: {
@@ -178,13 +180,23 @@ export function parseFacebookPostbackEvents(
       const userId = messaging.sender?.id;
       const payloadValue =
         messaging.postback?.payload ?? messaging.message?.quick_reply?.payload;
-      if (!pageId || !userId || userId === pageId || !payloadValue) continue;
+      const interactionTimestamp = messaging.timestamp;
+      if (
+        !pageId ||
+        !userId ||
+        userId === pageId ||
+        !payloadValue ||
+        !Number.isFinite(interactionTimestamp)
+      ) {
+        continue;
+      }
 
       events.push({
         platform: "FACEBOOK",
         pageId,
         userId,
         payload: payloadValue,
+        interactionTimestamp: interactionTimestamp as number,
         mid: messaging.postback?.mid ?? messaging.message?.mid,
       });
     }

@@ -100,6 +100,7 @@ describe("Facebook Page webhook parsing", () => {
               message: { mid: "mid-1", text: "hello" },
             },
             {
+              timestamp: 1786928400000,
               sender: { id: "person-2" },
               recipient: { id: "page-1" },
               message: {
@@ -128,6 +129,7 @@ describe("Facebook Page webhook parsing", () => {
         pageId: "page-1",
         userId: "person-2",
         payload: "reveal:auto-1",
+        interactionTimestamp: 1786928400000,
         mid: "mid-2",
       },
     ]);
@@ -166,6 +168,7 @@ describe("Facebook Page webhook parsing", () => {
           id: "page-1",
           messaging: [
             {
+              timestamp: 1786928460000,
               sender: { id: "person-1" },
               recipient: { id: "page-1" },
               postback: { mid: "mid-3", payload: "reveal:auto-1" },
@@ -186,6 +189,7 @@ describe("Facebook Page webhook parsing", () => {
         pageId: "page-1",
         userId: "person-1",
         payload: "reveal:auto-1",
+        interactionTimestamp: 1786928460000,
         mid: "mid-3",
       },
     ]);

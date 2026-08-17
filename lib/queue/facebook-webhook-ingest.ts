@@ -29,6 +29,7 @@ interface QueuedReveal {
     dmLogId: string;
     pageId: string;
     userId: string;
+    interactionTimestamp: number;
   };
   jobId: string;
 }
@@ -73,6 +74,7 @@ export async function processFacebookWebhookIngest(
   deps: FacebookWebhookIngestDeps = productionDeps
 ): Promise<void> {
   const pageCache = new Map<string, { workspaceId: string } | null>();
+  let workspaceId: string | null = null;
   const getPage = async (pageId: string) => {
     if (!pageCache.has(pageId)) {
       pageCache.set(pageId, await deps.findConnectedPage(pageId));
@@ -81,8 +83,6 @@ export async function processFacebookWebhookIngest(
   };
 
   try {
-    let workspaceId: string | null = null;
-
     for (const event of parseFacebookCommentEvents(job.payload)) {
       const page = await getPage(event.pageId);
       if (!page) continue;
@@ -106,6 +106,7 @@ export async function processFacebookWebhookIngest(
           dmLogId: reference.dmLogId,
           pageId: event.pageId,
           userId: event.userId,
+          interactionTimestamp: event.interactionTimestamp,
         },
         jobId: `facebook_reveal_${event.pageId}_${event.userId}_${reference.dmLogId}`,
       });
@@ -119,6 +120,7 @@ export async function processFacebookWebhookIngest(
     });
   } catch (error) {
     await deps.updateEvent(job.webhookEventId, {
+      workspaceId,
       status: "FAILED",
       processedAt: new Date(),
       errorMessage: error instanceof Error ? error.message : "Unknown error",

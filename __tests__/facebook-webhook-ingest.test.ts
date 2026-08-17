@@ -37,6 +37,7 @@ describe("Facebook webhook ingestion worker", () => {
           ],
           messaging: [
             {
+              timestamp: 1786928400000,
               sender: { id: "person-1" },
               recipient: { id: "page-1" },
               message: {
@@ -64,6 +65,7 @@ describe("Facebook webhook ingestion worker", () => {
         dmLogId: "log-1",
         pageId: "page-1",
         userId: "person-1",
+        interactionTimestamp: 1786928400000,
       },
       jobId: "facebook_reveal_page-1_person-1_log-1",
     });
@@ -109,5 +111,45 @@ describe("Facebook webhook ingestion worker", () => {
 
     expect(deps.queueComment).not.toHaveBeenCalled();
     expect(deps.queueReveal).not.toHaveBeenCalled();
+  });
+
+  it("keeps workspace attribution when fan-out fails", async () => {
+    const deps = createDeps();
+    vi.mocked(deps.queueReveal).mockRejectedValue(new Error("Redis unavailable"));
+
+    await expect(
+      processFacebookWebhookIngest(
+        {
+          webhookEventId: "webhook-1",
+          payload: {
+            object: "page",
+            entry: [
+              {
+                id: "page-1",
+                messaging: [
+                  {
+                    timestamp: 1786928400000,
+                    sender: { id: "person-1" },
+                    recipient: { id: "page-1" },
+                    message: {
+                      mid: "mid-1",
+                      quick_reply: { payload: "facebook_reveal:signed" },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        deps
+      )
+    ).rejects.toThrow("Redis unavailable");
+
+    expect(deps.updateEvent).toHaveBeenCalledWith("webhook-1", {
+      workspaceId: "workspace-1",
+      status: "FAILED",
+      processedAt: expect.any(Date),
+      errorMessage: "Redis unavailable",
+    });
   });
 });

@@ -41,6 +41,7 @@ export interface FacebookRevealJob {
   dmLogId: string;
   pageId: string;
   userId: string;
+  interactionTimestamp: number;
 }
 
 export interface FacebookRevealDeps {
@@ -152,7 +153,18 @@ export async function processFacebookReveal(
     return;
   }
 
-  const interactionAt = deps.now();
+  const interactionAt = new Date(job.interactionTimestamp);
+  const now = deps.now();
+  if (
+    !Number.isFinite(interactionAt.getTime()) ||
+    now.getTime() - interactionAt.getTime() > 24 * 60 * 60 * 1000
+  ) {
+    await deps.updateLog(log.id, {
+      linkDeliveryError: "Messenger interaction window expired before processing",
+    });
+    return;
+  }
+
   await deps.updateLog(log.id, {
     facebookInteractionAt: interactionAt,
     facebookRecipientId: job.userId,
@@ -205,7 +217,11 @@ export async function processFacebookReveal(
       try {
         await deps.queueFollowUp(
           log.id,
-          Math.max(0, log.automation.followUpDelayMinutes) * 60_000
+          Math.max(
+            0,
+            Math.max(0, log.automation.followUpDelayMinutes) * 60_000 -
+              Math.max(0, deps.now().getTime() - interactionAt.getTime())
+          )
         );
       } catch (error) {
         await deps.resetFollowUpClaim(log.id, queuedAt);
