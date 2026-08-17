@@ -73,6 +73,20 @@ export async function listManagedFacebookPages(
   return result.data ?? [];
 }
 
+export async function getFacebookPageById(
+  userAccessToken: string,
+  pageId: string
+): Promise<FacebookManagedPage> {
+  const params = new URLSearchParams({
+    fields: "id,name,access_token,tasks",
+  });
+  const response = await fetch(
+    `${facebookGraphBase()}/${encodeURIComponent(pageId)}?${params.toString()}`,
+    { headers: bearerHeaders(userAccessToken) }
+  );
+  return handleResponse<FacebookManagedPage>(response);
+}
+
 export async function subscribeFacebookPage(
   pageAccessToken: string,
   pageId: string

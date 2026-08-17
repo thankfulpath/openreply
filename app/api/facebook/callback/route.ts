@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getBaseUrl } from "@/lib/env";
 import { FACEBOOK_JOURNAL_CAMPAIGN } from "@/lib/facebook/journal-campaign";
 import {
+  getFacebookPageById,
   listManagedFacebookPages,
   subscribeFacebookPage,
 } from "@/lib/meta/facebook-client";
@@ -114,12 +115,43 @@ export async function GET(request: NextRequest) {
     const shortLivedToken = await exchangeFacebookCode(code, redirectUri);
     const longLived = await exchangeForLongLivedFacebookToken(shortLivedToken);
     const pages = await listManagedFacebookPages(longLived.accessToken);
-    const page = chooseConfiguredFacebookPage(
+    const configuredPageId = process.env.FACEBOOK_PAGE_ID?.trim();
+    let page = chooseConfiguredFacebookPage(
       pages,
-      process.env.FACEBOOK_PAGE_ID
+      configuredPageId
     );
 
+    let directLookupReason: string | null = null;
+    if (!page && configuredPageId) {
+      try {
+        page = await getFacebookPageById(
+          longLived.accessToken,
+          configuredPageId
+        );
+      } catch (directLookupError) {
+        directLookupReason =
+          directLookupError instanceof Error
+            ? directLookupError.message
+            : "Unknown direct Page lookup error";
+      }
+    }
+
     if (!page) {
+      await prisma.operationalEvent
+        .create({
+          data: {
+            source: "SYSTEM",
+            level: "ERROR",
+            workspaceId: state.workspaceId,
+            message: "Configured Facebook Page was not returned by Meta",
+            payload: {
+              configuredPageId: configuredPageId ?? null,
+              returnedPageIds: pages.map((candidate) => candidate.id),
+              directLookupReason,
+            },
+          },
+        })
+        .catch(() => {});
       return NextResponse.redirect(`${baseUrl}/settings?facebook=page_not_found`);
     }
 

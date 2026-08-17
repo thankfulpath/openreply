@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getFacebookPageById,
   listManagedFacebookPages,
   sendFacebookDirectMessage,
   sendFacebookDirectMessageWithLinkButton,
@@ -145,6 +146,33 @@ describe("Facebook Page Graph client", () => {
     expect(init?.headers).toMatchObject({ Authorization: "Bearer user-token" });
     expect(pages).toHaveLength(1);
     expect(pages[0].name).toBe("Thankful Path");
+  });
+
+  it("gets the configured Page directly when Meta omits it from me/accounts", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "103331758424249",
+        name: "Thankful Path",
+        access_token: "page-token",
+        tasks: ["MODERATE", "MESSAGING"],
+      })
+    );
+
+    const page = await getFacebookPageById(
+      "user-token",
+      "103331758424249"
+    );
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/103331758424249?");
+    expect(String(url)).not.toContain("user-token");
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer user-token" });
+    expect(page).toEqual({
+      id: "103331758424249",
+      name: "Thankful Path",
+      access_token: "page-token",
+      tasks: ["MODERATE", "MESSAGING"],
+    });
   });
 
   it("subscribes the Page to comment and Messenger webhook fields", async () => {
