@@ -17,6 +17,23 @@ export interface FacebookWebhookIngestJob {
   payload: FacebookWebhookPayload;
 }
 
+export class FacebookWebhookIngestError extends Error {
+  facebookPageId: string | null;
+  workspaceId: string | null;
+
+  constructor(
+    message: string,
+    facebookPageId: string | null,
+    workspaceId: string | null,
+    cause: unknown
+  ) {
+    super(message, { cause });
+    this.name = "FacebookWebhookIngestError";
+    this.facebookPageId = facebookPageId;
+    this.workspaceId = workspaceId;
+  }
+}
+
 interface QueuedComment {
   name: "process-comment";
   data: ReturnType<typeof buildFacebookCommentJob>["data"];
@@ -74,7 +91,11 @@ export async function processFacebookWebhookIngest(
   deps: FacebookWebhookIngestDeps = productionDeps
 ): Promise<void> {
   const pageCache = new Map<string, { workspaceId: string } | null>();
-  let workspaceId: string | null = null;
+  const workspaceIds = new Set<string>();
+  let failureContext: {
+    facebookPageId: string;
+    workspaceId: string | null;
+  } | null = null;
   const getPage = async (pageId: string) => {
     if (!pageCache.has(pageId)) {
       pageCache.set(pageId, await deps.findConnectedPage(pageId));
@@ -84,9 +105,11 @@ export async function processFacebookWebhookIngest(
 
   try {
     for (const event of parseFacebookCommentEvents(job.payload)) {
+      failureContext = { facebookPageId: event.pageId, workspaceId: null };
       const page = await getPage(event.pageId);
       if (!page) continue;
-      workspaceId ??= page.workspaceId;
+      workspaceIds.add(page.workspaceId);
+      failureContext.workspaceId = page.workspaceId;
       await deps.queueComment(buildFacebookCommentJob(event));
     }
 
@@ -96,9 +119,11 @@ export async function processFacebookWebhookIngest(
         event.payload.slice("facebook_reveal:".length)
       );
       if (!reference) continue;
+      failureContext = { facebookPageId: event.pageId, workspaceId: null };
       const page = await getPage(event.pageId);
       if (!page) continue;
-      workspaceId ??= page.workspaceId;
+      workspaceIds.add(page.workspaceId);
+      failureContext.workspaceId = page.workspaceId;
 
       await deps.queueReveal({
         data: {
@@ -108,23 +133,31 @@ export async function processFacebookWebhookIngest(
           userId: event.userId,
           interactionTimestamp: event.interactionTimestamp,
         },
-        jobId: `facebook_reveal_${event.pageId}_${event.userId}_${reference.dmLogId}`,
+        jobId: `facebook_reveal_${event.pageId}_${event.userId}_${reference.dmLogId}_${event.interactionTimestamp}`,
       });
     }
 
     await deps.updateEvent(job.webhookEventId, {
-      workspaceId,
+      workspaceId:
+        workspaceIds.size === 1 ? workspaceIds.values().next().value : null,
       status: "PROCESSED",
       processedAt: new Date(),
       errorMessage: null,
     });
   } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     await deps.updateEvent(job.webhookEventId, {
-      workspaceId,
+      workspaceId: failureContext?.workspaceId ?? null,
       status: "FAILED",
       processedAt: new Date(),
-      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      errorMessage,
     });
-    throw error;
+    throw new FacebookWebhookIngestError(
+      errorMessage,
+      failureContext?.facebookPageId ?? null,
+      failureContext?.workspaceId ?? null,
+      error
+    );
   }
 }

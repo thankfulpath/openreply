@@ -1160,4 +1160,33 @@ describe("DM Worker — Facebook failure attribution", () => {
       }),
     });
   });
+
+  it("uses the failing Page context carried by webhook ingestion", async () => {
+    const error = Object.assign(new Error("Webhook ingest failed"), {
+      facebookPageId: "page_failed",
+      workspaceId: "workspace_failed",
+    });
+
+    await recordWorkerFailure(
+      {
+        id: "webhook_job_2",
+        attemptsMade: 3,
+        data: {
+          webhookEventId: "webhook_event_2",
+          payload: {},
+        },
+      } as never,
+      error
+    );
+
+    expect(mockPrisma.operationalEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: "workspace_failed",
+        payload: expect.objectContaining({
+          facebookPageId: "page_failed",
+          webhookEventId: "webhook_event_2",
+        }),
+      }),
+    });
+  });
 });

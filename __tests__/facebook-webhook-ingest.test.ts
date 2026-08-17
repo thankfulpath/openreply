@@ -67,7 +67,7 @@ describe("Facebook webhook ingestion worker", () => {
         userId: "person-1",
         interactionTimestamp: 1786928400000,
       },
-      jobId: "facebook_reveal_page-1_person-1_log-1",
+      jobId: "facebook_reveal_page-1_person-1_log-1_1786928400000",
     });
     expect(deps.updateEvent).toHaveBeenCalledWith("webhook-1", {
       workspaceId: "workspace-1",
@@ -151,5 +151,104 @@ describe("Facebook webhook ingestion worker", () => {
       processedAt: expect.any(Date),
       errorMessage: "Redis unavailable",
     });
+  });
+
+  it("attributes a multi-Page failure to the Page that actually failed", async () => {
+    const deps = createDeps();
+    vi.mocked(deps.findConnectedPage).mockImplementation(async (pageId) => ({
+      workspaceId: pageId === "page-1" ? "workspace-1" : "workspace-2",
+    }));
+    vi.mocked(deps.queueReveal).mockRejectedValue(new Error("Redis unavailable"));
+
+    const promise = processFacebookWebhookIngest(
+      {
+        webhookEventId: "webhook-1",
+        payload: {
+          object: "page",
+          entry: [
+            {
+              id: "page-1",
+              changes: [
+                {
+                  field: "feed",
+                  value: {
+                    item: "comment",
+                    verb: "add",
+                    comment_id: "comment-1",
+                    post_id: "post-1",
+                    sender_id: "person-1",
+                    message: "JOURNAL",
+                  },
+                },
+              ],
+            },
+            {
+              id: "page-2",
+              messaging: [
+                {
+                  timestamp: 1786928460000,
+                  sender: { id: "person-2" },
+                  recipient: { id: "page-2" },
+                  message: {
+                    mid: "mid-2",
+                    quick_reply: { payload: "facebook_reveal:signed" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      deps
+    );
+
+    await expect(promise).rejects.toMatchObject({
+      message: "Redis unavailable",
+      facebookPageId: "page-2",
+      workspaceId: "workspace-2",
+    });
+    expect(deps.updateEvent).toHaveBeenCalledWith("webhook-1", {
+      workspaceId: "workspace-2",
+      status: "FAILED",
+      processedAt: expect.any(Date),
+      errorMessage: "Redis unavailable",
+    });
+  });
+
+  it("gives fresh taps distinct reveal job IDs", async () => {
+    const deps = createDeps();
+    const makePayload = (timestamp: number) => ({
+      object: "page",
+      entry: [
+        {
+          id: "page-1",
+          messaging: [
+            {
+              timestamp,
+              sender: { id: "person-1" },
+              recipient: { id: "page-1" },
+              message: {
+                mid: `mid-${timestamp}`,
+                quick_reply: { payload: "facebook_reveal:signed" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await processFacebookWebhookIngest(
+      { webhookEventId: "webhook-1", payload: makePayload(1_000) },
+      deps
+    );
+    await processFacebookWebhookIngest(
+      { webhookEventId: "webhook-2", payload: makePayload(2_000) },
+      deps
+    );
+
+    expect(vi.mocked(deps.queueReveal).mock.calls.map(([job]) => job.jobId)).toEqual([
+      "facebook_reveal_page-1_person-1_log-1_1000",
+      "facebook_reveal_page-1_person-1_log-1_2000",
+    ]);
   });
 });

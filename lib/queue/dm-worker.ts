@@ -1260,6 +1260,14 @@ export async function recordWorkerFailure(
   error: Error
 ) {
   try {
+    const failureFacebookPageId =
+      "facebookPageId" in error && typeof error.facebookPageId === "string"
+        ? error.facebookPageId
+        : undefined;
+    const failureWorkspaceId =
+      "workspaceId" in error && typeof error.workspaceId === "string"
+        ? error.workspaceId
+        : undefined;
     const instagramAccountId =
       job && "instagramAccountId" in job.data
         ? job.data.instagramAccountId
@@ -1269,7 +1277,7 @@ export async function recordWorkerFailure(
         ? job.data.facebookPageId
         : job && "pageId" in job.data
           ? job.data.pageId
-          : undefined;
+          : failureFacebookPageId;
     const commentId =
       job && "commentId" in job.data ? job.data.commentId : null;
     const dmLogId =
@@ -1314,6 +1322,7 @@ export async function recordWorkerFailure(
           account?.workspaceId ??
           facebookPage?.workspaceId ??
           dmLog?.workspaceId ??
+          failureWorkspaceId ??
           webhookEvent?.workspaceId ??
           null,
         source: "WORKER",
