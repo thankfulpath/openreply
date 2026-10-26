@@ -107,7 +107,26 @@ export async function exchangeCodeForToken(
     );
   }
 
-  const data = await response.json();
+  const responseBody: unknown = await response.json();
+  const data =
+    typeof responseBody === "object" && responseBody !== null && "data" in responseBody
+      ? Array.isArray(responseBody.data) && responseBody.data.length === 1
+        ? responseBody.data[0]
+        : null
+      : responseBody;
+
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("access_token" in data) ||
+    typeof data.access_token !== "string" ||
+    !data.access_token ||
+    !("user_id" in data) ||
+    (typeof data.user_id !== "string" && typeof data.user_id !== "number")
+  ) {
+    throw new Error("Instagram token response missing access token or user ID");
+  }
+
   return {
     accessToken: data.access_token,
     userId: String(data.user_id),
