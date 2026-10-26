@@ -18,7 +18,7 @@ function record(overrides: Record<string, unknown> = {}) {
     automation: {
       id: "automation-1",
       isActive: true,
-      dmMessage: "Here you go 💛 Journal on Amazon: {link}",
+      dmMessage: "Here you go 💛 Journal on Amazon: https://taap.it/Journal {link}",
       linkButtonLabel: "View on Amazon",
       followUpEnabled: true,
       followUpMessage: "Hey! Did you get a chance to look at the journal?",
@@ -45,7 +45,6 @@ function createDeps(
     claimFollowUp: vi.fn().mockResolvedValue(true),
     resetFollowUpClaim: vi.fn().mockResolvedValue(undefined),
     decryptToken: vi.fn().mockReturnValue("page-token"),
-    signRecipientReference: vi.fn().mockReturnValue("signed-ref"),
     sendLinkButton: vi.fn().mockResolvedValue({ message_id: "message-2" }),
     queueFollowUp: vi.fn().mockResolvedValue(undefined),
     now: () => now,
@@ -54,7 +53,7 @@ function createDeps(
 }
 
 describe("Facebook View on Amazon reveal", () => {
-  it("records the Messenger interaction, sends the tracked link, and schedules five minutes", async () => {
+  it("records the Messenger interaction, sends the direct destination link, and schedules five minutes", async () => {
     const deps = createDeps();
 
     await processFacebookReveal(
@@ -75,9 +74,9 @@ describe("Facebook View on Amazon reveal", () => {
       "page-token",
       "page-1",
       "psid-1",
-      "Here you go 💛 Journal on Amazon:",
+      "Here you go 💛 Journal on Amazon: https://taap.it/Journal",
       "View on Amazon",
-      expect.stringMatching(/\/r\/journal\?ref=signed-ref$/)
+      "https://taap.it/Journal"
     );
     expect(deps.updateLog).toHaveBeenCalledWith("log-1", {
       linkDeliveredAt: now,

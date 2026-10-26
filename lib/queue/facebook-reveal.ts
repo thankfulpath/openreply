@@ -6,11 +6,7 @@ import {
 } from "@/lib/meta/facebook-client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { FOLLOWUP_JOB_NAME, getDMQueue } from "@/lib/queue/client";
-import {
-  buildTrackedUrl,
-  renderMessageWithoutLink,
-} from "@/lib/tracking/message";
-import { signRecipientReference } from "@/lib/tracking/recipient-reference";
+import { renderMessageWithoutLink } from "@/lib/tracking/message";
 
 interface FacebookRevealRecord {
   id: string;
@@ -50,7 +46,6 @@ export interface FacebookRevealDeps {
   claimFollowUp(dmLogId: string, queuedAt: Date): Promise<boolean>;
   resetFollowUpClaim(dmLogId: string, queuedAt: Date): Promise<unknown>;
   decryptToken(value: string): string;
-  signRecipientReference(dmLogId: string): string;
   sendLinkButton(
     accessToken: string,
     pageId: string,
@@ -121,7 +116,6 @@ const productionDeps: FacebookRevealDeps = {
     });
   },
   decryptToken,
-  signRecipientReference,
   sendLinkButton: sendFacebookDirectMessageWithLinkButton,
   queueFollowUp(dmLogId, delayMs) {
     return getDMQueue().add(
@@ -174,12 +168,6 @@ export async function processFacebookReveal(
     const primaryLink = log.automation.trackedLinks[0];
     if (!primaryLink) return;
 
-    const trackedUrl = new URL(buildTrackedUrl(primaryLink.slug));
-    trackedUrl.searchParams.set(
-      "ref",
-      deps.signRecipientReference(log.id)
-    );
-
     try {
       await deps.sendLinkButton(
         deps.decryptToken(log.facebookPage.accessToken),
@@ -190,7 +178,7 @@ export async function processFacebookReveal(
           commenterName: null,
         }),
         log.automation.linkButtonLabel?.trim() || "View on Amazon",
-        trackedUrl.toString()
+        primaryLink.destinationUrl
       );
       await deps.updateLog(log.id, {
         linkDeliveredAt: interactionAt,
