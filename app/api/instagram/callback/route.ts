@@ -41,20 +41,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/settings?instagram=forbidden`);
   }
 
+  let stage = "short-lived token exchange";
   try {
     const redirectUri = `${baseUrl}/api/instagram/callback`;
     const { accessToken: shortLivedToken } = await exchangeCodeForToken(
       code,
       redirectUri
     );
+    stage = "long-lived token exchange";
     const { accessToken: longLivedToken, expiresIn } =
       await getLongLivedToken(shortLivedToken);
+    stage = "profile lookup";
     const userInfo = await getUserInfo(longLivedToken);
     // Webhooks and the messaging API key off the professional account ID
     // (user_id), not the app-scoped `id`. Store user_id so comment webhooks
     // can be matched back to this account. Fall back to id if user_id is
     // ever absent.
     const instagramId = userInfo.user_id ?? userInfo.id;
+    stage = "account validation";
     const connection = await canConnectInstagramAccount({
       workspaceId: state.workspaceId,
       instagramId,
@@ -83,6 +87,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    stage = "account save";
     await prisma.instagramAccount.upsert({
       where: { instagramId },
       create: {
@@ -107,7 +112,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/dashboard?connected=true`);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Instagram Callback] Error:", err);
+    console.error(`[Instagram Callback] ${stage} failed:`, err);
     // The message is the only diagnostic a self-hoster gets for a failed
     // connect, so persist it alongside the other operational events rather
     // than leaving it in server logs they may not be able to reach.
@@ -118,14 +123,14 @@ export async function GET(request: NextRequest) {
           level: "ERROR",
           workspaceId: state.workspaceId,
           message: "Instagram connection failed",
-          payload: { reason: message },
+          payload: { stage, reason: message },
         },
       })
       .catch(() => {});
 
     return NextResponse.redirect(
       `${baseUrl}/settings?instagram=failed&reason=${encodeURIComponent(
-        message.slice(0, 200)
+        `${stage}: ${message}`.slice(0, 200)
       )}`
     );
   }
