@@ -16,7 +16,7 @@ function record(overrides: Record<string, unknown> = {}) {
     followUpQueuedAt: null,
     followUpSentAt: null,
     automation: {
-      id: "automation-1",
+      id: "cmvpnhgmq000108l60fp45fxy",
       isActive: true,
       dmMessage: "Here you go 💛 Journal on Amazon: https://taap.it/Journal {link}",
       linkButtonLabel: "View on Amazon",
@@ -45,6 +45,7 @@ function createDeps(
     claimFollowUp: vi.fn().mockResolvedValue(true),
     resetFollowUpClaim: vi.fn().mockResolvedValue(undefined),
     decryptToken: vi.fn().mockReturnValue("page-token"),
+    signRecipientReference: vi.fn().mockReturnValue("signed-ref"),
     sendLinkButton: vi.fn().mockResolvedValue({ message_id: "message-2" }),
     queueFollowUp: vi.fn().mockResolvedValue(undefined),
     now: () => now,
@@ -104,6 +105,33 @@ describe("Facebook View on Amazon reveal", () => {
 
     expect(deps.sendLinkButton).not.toHaveBeenCalled();
     expect(deps.queueFollowUp).not.toHaveBeenCalled();
+  });
+
+  it("keeps tracked links for other Facebook campaigns", async () => {
+    const other = record();
+    other.automation.id = "other-facebook-campaign";
+    const deps = createDeps({
+      findLog: vi.fn().mockResolvedValue(other),
+    });
+
+    await processFacebookReveal(
+      {
+        dmLogId: "log-1",
+        pageId: "page-1",
+        userId: "psid-1",
+        interactionTimestamp: now.getTime(),
+      },
+      deps
+    );
+
+    expect(deps.sendLinkButton).toHaveBeenCalledWith(
+      "page-token",
+      "page-1",
+      "psid-1",
+      "Here you go 💛 Journal on Amazon: https://taap.it/Journal",
+      "View on Amazon",
+      expect.stringMatching(/\/r\/journal\?ref=/)
+    );
   });
 
   it("counts the five-minute delay from the Meta interaction timestamp", async () => {

@@ -6,7 +6,12 @@ import {
 } from "@/lib/meta/facebook-client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { FOLLOWUP_JOB_NAME, getDMQueue } from "@/lib/queue/client";
-import { renderMessageWithoutLink } from "@/lib/tracking/message";
+import { buildTrackedUrl, renderMessageWithoutLink } from "@/lib/tracking/message";
+import { signRecipientReference } from "@/lib/tracking/recipient-reference";
+
+// This live Warmheart campaign sends the owner's Taap deep link directly.
+// Other Facebook campaigns retain tracked URLs and click attribution.
+const WARMHEART_DIRECT_LINK_CAMPAIGN_ID = "cmvpnhgmq000108l60fp45fxy";
 
 interface FacebookRevealRecord {
   id: string;
@@ -46,6 +51,7 @@ export interface FacebookRevealDeps {
   claimFollowUp(dmLogId: string, queuedAt: Date): Promise<boolean>;
   resetFollowUpClaim(dmLogId: string, queuedAt: Date): Promise<unknown>;
   decryptToken(value: string): string;
+  signRecipientReference(dmLogId: string): string;
   sendLinkButton(
     accessToken: string,
     pageId: string,
@@ -116,6 +122,7 @@ const productionDeps: FacebookRevealDeps = {
     });
   },
   decryptToken,
+  signRecipientReference,
   sendLinkButton: sendFacebookDirectMessageWithLinkButton,
   queueFollowUp(dmLogId, delayMs) {
     return getDMQueue().add(
@@ -168,6 +175,11 @@ export async function processFacebookReveal(
     const primaryLink = log.automation.trackedLinks[0];
     if (!primaryLink) return;
 
+    const linkUrl =
+      log.automation.id === WARMHEART_DIRECT_LINK_CAMPAIGN_ID
+        ? primaryLink.destinationUrl
+        : `${buildTrackedUrl(primaryLink.slug)}?ref=${encodeURIComponent(deps.signRecipientReference(log.id))}`;
+
     try {
       await deps.sendLinkButton(
         deps.decryptToken(log.facebookPage.accessToken),
@@ -178,7 +190,7 @@ export async function processFacebookReveal(
           commenterName: null,
         }),
         log.automation.linkButtonLabel?.trim() || "View on Amazon",
-        primaryLink.destinationUrl
+        linkUrl
       );
       await deps.updateLog(log.id, {
         linkDeliveredAt: interactionAt,
