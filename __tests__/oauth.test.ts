@@ -27,6 +27,15 @@ describe("OAuth state and token encryption", () => {
     expect(verifyOAuthState(state)?.workspaceId).toBe("workspace_123");
   });
 
+  it("keeps the requested Facebook Page ID in signed OAuth state", () => {
+    const state = createOAuthState("workspace_123", "1202857256253166");
+    expect(verifyOAuthState(state)).toMatchObject({
+      workspaceId: "workspace_123",
+      facebookPageId: "1202857256253166",
+    });
+    expect(verifyOAuthState(`${state}tampered`)).toBeNull();
+  });
+
   it("rejects tampered OAuth state", () => {
     const state = createOAuthState("workspace_123");
     expect(verifyOAuthState(`${state}tampered`)).toBeNull();

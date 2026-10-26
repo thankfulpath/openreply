@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     const shortLivedToken = await exchangeFacebookCode(code, redirectUri);
     const longLived = await exchangeForLongLivedFacebookToken(shortLivedToken);
     const pages = await listManagedFacebookPages(longLived.accessToken);
-    const configuredPageId = process.env.FACEBOOK_PAGE_ID?.trim();
+    const configuredPageId = state.facebookPageId ?? process.env.FACEBOOK_PAGE_ID?.trim();
     let page = chooseConfiguredFacebookPage(
       pages,
       configuredPageId

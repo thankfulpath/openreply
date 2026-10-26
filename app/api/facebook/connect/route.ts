@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getBaseUrl, getMissingFacebookOAuthEnv } from "@/lib/env";
 import { getFacebookAuthorizationUrl } from "@/lib/meta/facebook-oauth";
 import { createOAuthState } from "@/lib/meta/oauth";
@@ -7,7 +7,7 @@ import {
   getCurrentWorkspaceContext,
 } from "@/lib/workspace-access";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const context = await getCurrentWorkspaceContext();
   const baseUrl = getBaseUrl();
 
@@ -27,7 +27,12 @@ export async function GET() {
     );
   }
 
+  const requestedPageId = request.nextUrl.searchParams.get("pageId")?.trim();
+  if (requestedPageId && !/^\d{10,20}$/.test(requestedPageId)) {
+    return NextResponse.redirect(`${baseUrl}/settings?facebook=invalid_page`);
+  }
+
   const redirectUri = `${baseUrl}/api/facebook/callback`;
-  const state = createOAuthState(context.workspaceId);
+  const state = createOAuthState(context.workspaceId, requestedPageId);
   return NextResponse.redirect(getFacebookAuthorizationUrl(redirectUri, state));
 }
