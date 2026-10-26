@@ -22,6 +22,7 @@ interface FacebookPollingAutomation {
   id: string;
   name: string;
   workspaceId: string;
+  createdAt: Date;
   postId: string | null;
   matchAnyPost: boolean;
   matchAnyWord: boolean;
@@ -82,6 +83,7 @@ const productionDeps: FacebookCommentReconcilerDeps = {
         id: true,
         name: true,
         workspaceId: true,
+        createdAt: true,
         postId: true,
         matchAnyPost: true,
         matchAnyWord: true,
@@ -222,7 +224,7 @@ export async function reconcileFacebookComments(
             !commenterId ||
             commenterId === automation.facebookPage.pageId ||
             !Number.isFinite(createdAt) ||
-            createdAt < sinceMs
+            createdAt < Math.max(sinceMs, automation.createdAt.getTime())
           ) {
             continue;
           }

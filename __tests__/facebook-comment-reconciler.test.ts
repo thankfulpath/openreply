@@ -11,6 +11,7 @@ function createDeps(): FacebookCommentReconcilerDeps {
         id: "automation-1",
         name: "Journal · Facebook",
         workspaceId: "workspace-1",
+        createdAt: new Date("2026-08-17T12:20:00.000Z"),
         postId: null,
         matchAnyPost: true,
         matchAnyWord: false,
@@ -91,6 +92,20 @@ describe("Facebook comment polling safety net", () => {
       },
     ]);
     vi.mocked(deps.findHandledCommentIds).mockResolvedValue(["handled"]);
+
+    await reconcileFacebookComments(deps);
+
+    expect(deps.queueComment).not.toHaveBeenCalled();
+  });
+
+  it("does not backfill a comment posted before a newly created campaign", async () => {
+    const deps = createDeps();
+    vi.mocked(deps.findAutomations).mockResolvedValue([
+      {
+        ...(await vi.mocked(deps.findAutomations)())[0],
+        createdAt: new Date("2026-08-17T12:27:00.000Z"),
+      },
+    ]);
 
     await reconcileFacebookComments(deps);
 
