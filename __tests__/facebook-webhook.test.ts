@@ -8,6 +8,56 @@ import {
 } from "../lib/meta/facebook-webhook";
 
 describe("Facebook Page webhook parsing", () => {
+  it("normalizes the from.id author supplied by live feed-comment webhooks", () => {
+    const payload = {
+      object: "page",
+      entry: [{
+        id: "page-1",
+        changes: [{
+          field: "feed",
+          value: {
+            item: "comment", verb: "add", comment_id: "comment-2",
+            post_id: "page-1_post-1", message: "Journal 🙏🏻🙏🏻",
+            from: { id: "person-2", name: "Customer Two" },
+          },
+        }],
+      }],
+    };
+
+    expect(parseFacebookCommentEvents(payload)).toEqual([{
+      platform: "FACEBOOK", pageId: "page-1", commentId: "comment-2",
+      mediaId: "page-1_post-1", commentText: "Journal 🙏🏻🙏🏻",
+      commenterId: "person-2", commenterName: "Customer Two",
+    }]);
+  });
+
+  it("prefers the nested author when legacy fields are also present", () => {
+    const payload = {
+      object: "page",
+      entry: [{ id: "page-1", changes: [{ field: "feed", value: {
+        item: "comment", verb: "add", comment_id: "comment-2", post_id: "post-1",
+        from: { id: "person-2", name: "Customer Two" },
+        sender_id: "legacy-person", sender_name: "Legacy Customer", message: "JOURNAL",
+      } }] }],
+    };
+    expect(parseFacebookCommentEvents(payload)[0]).toMatchObject({
+      commenterId: "person-2", commenterName: "Customer Two",
+    });
+  });
+
+  it.each([
+    ["Page-authored", { id: "page-1", name: "Page" }],
+    ["missing identity", { name: "Unknown" }],
+  ])("ignores %s comments in the nested-author format", (_label, from) => {
+    const payload = { object: "page", entry: [{ id: "page-1", changes: [{
+      field: "feed", value: {
+        item: "comment", verb: "add", comment_id: "c1", post_id: "p1",
+        from, message: "JOURNAL",
+      },
+    }] }] };
+    expect(parseFacebookCommentEvents(payload)).toEqual([]);
+  });
+
   it("normalizes a new feed comment", () => {
     const events = parseFacebookCommentEvents({
       object: "page",

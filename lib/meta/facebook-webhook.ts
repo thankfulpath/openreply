@@ -64,6 +64,7 @@ export interface FacebookWebhookPayload {
         verb?: string;
         comment_id?: string;
         post_id?: string;
+        from?: { id?: string; name?: string };
         sender_id?: string;
         sender_name?: string;
         message?: string;
@@ -110,7 +111,7 @@ export function parseFacebookCommentEvents(
 
       const commentId = value.comment_id;
       const mediaId = value.post_id;
-      const commenterId = value.sender_id;
+      const commenterId = value.from?.id ?? value.sender_id;
       if (!commentId || !mediaId || !commenterId || commenterId === pageId) {
         continue;
       }
@@ -121,7 +122,7 @@ export function parseFacebookCommentEvents(
         commentId,
         commentText: value.message ?? "",
         commenterId,
-        commenterName: value.sender_name,
+        commenterName: value.from?.name ?? value.sender_name,
         mediaId,
       });
     }

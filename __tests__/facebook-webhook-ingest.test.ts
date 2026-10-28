@@ -15,6 +15,31 @@ function createDeps(): FacebookWebhookIngestDeps {
 }
 
 describe("Facebook webhook ingestion worker", () => {
+  it("queues a live-format from.id comment with the correct recipient and deduplication key", async () => {
+    const deps = createDeps();
+    const payload = { object: "page", entry: [{ id: "page-1", changes: [{
+      field: "feed", value: {
+        item: "comment", verb: "add", comment_id: "comment-2", post_id: "post-1",
+        from: { id: "person-2", name: "Customer Two" }, message: "Journal 🙏🏻🙏🏻",
+      },
+    }] }] };
+
+    await processFacebookWebhookIngest({ webhookEventId: "webhook-2", payload }, deps);
+
+    expect(deps.queueComment).toHaveBeenCalledExactlyOnceWith({
+      name: "process-comment", jobId: "comment_facebook_page-1_comment-2",
+      data: {
+        platform: "FACEBOOK", accountId: "page-1", facebookPageId: "page-1",
+        commentId: "comment-2", commentText: "Journal 🙏🏻🙏🏻",
+        commenterId: "person-2", commenterName: "Customer Two",
+        mediaId: "post-1", source: "WEBHOOK",
+      },
+    });
+    expect(deps.updateEvent).toHaveBeenCalledWith("webhook-2", expect.objectContaining({
+      status: "PROCESSED", workspaceId: "workspace-1",
+    }));
+  });
+
   it("fans out a comment and qualifying quick reply for a connected Page", async () => {
     const deps = createDeps();
     const payload = {
