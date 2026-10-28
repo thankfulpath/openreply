@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import { getCampaignLinkPresentation } from "@/lib/campaign-links";
+import { renderMessageWithoutLink } from "@/lib/tracking/message";
 
 interface Campaign {
   id: string;
@@ -153,6 +155,10 @@ export default function CampaignDetailPage() {
         : [];
   const hasLink = Boolean(campaign.trackedLinks?.[0]?.destinationUrl);
   const hasSecondLink = Boolean(campaign.trackedLinks?.[1]?.destinationUrl);
+  const revealMessage =
+    campaign.platform === "FACEBOOK"
+      ? renderMessageWithoutLink({ message: campaign.dmMessage, commenterName: null })
+      : campaign.dmMessage;
 
   const trigger = campaign.matchAnyPost
     ? "Any post or reel"
@@ -251,7 +257,7 @@ export default function CampaignDetailPage() {
         )}
 
         <Summary title="And then, they will get a DM">
-          <FieldBox>{campaign.dmMessage}</FieldBox>
+          <FieldBox>{revealMessage}</FieldBox>
           {hasLink && (
             <FieldBox>{campaign.linkButtonLabel || "Open link"}</FieldBox>
           )}
@@ -266,19 +272,24 @@ export default function CampaignDetailPage() {
           <Summary title="The exact link sent">
             {campaign.trackedLinks
               ?.filter((link) => link.destinationUrl)
-              .map((link, i) => (
-                <div key={i} className="space-y-1">
+              .map((link, i) => {
+                const presentation = getCampaignLinkPresentation({
+                  campaignId: campaign.id,
+                  platform: campaign.platform,
+                  link,
+                });
+                return <div key={i} className="space-y-1">
                   <div className="rounded border border-border bg-surface px-3 py-2">
                     <p className="select-all break-all font-mono text-xs text-foreground">
-                      {link.trackedUrl ?? link.destinationUrl}
+                      {presentation.url}
                     </p>
                   </div>
-                  <p className="text-xs text-muted">
+                  {presentation.redirectsTo && <p className="text-xs text-muted">
                     {link.label ? `${link.label} · ` : ""}redirects to{" "}
-                    <span className="break-all">{link.destinationUrl}</span>
-                  </p>
-                </div>
-              ))}
+                    <span className="break-all">{presentation.redirectsTo}</span>
+                  </p>}
+                </div>;
+              })}
           </Summary>
         )}
 
@@ -361,13 +372,14 @@ export default function CampaignDetailPage() {
             openingDmEnabled={campaign.openingDmEnabled}
             openingDmMessage={campaign.openingDmMessage ?? ""}
             openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
-            revealMessage={campaign.dmMessage}
+            revealMessage={revealMessage}
             hasLink={hasLink}
             linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
-            linkUrl={
-              campaign.trackedLinks?.[0]?.trackedUrl ??
-              campaign.trackedLinks?.[0]?.destinationUrl
-            }
+            linkUrl={campaign.trackedLinks?.[0] && getCampaignLinkPresentation({
+              campaignId: campaign.id,
+              platform: campaign.platform,
+              link: campaign.trackedLinks[0],
+            }).url}
             hasSecondLink={hasSecondLink}
             secondLinkButtonLabel={
               campaign.trackedLinks?.[1]?.label ?? "Open link"

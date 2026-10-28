@@ -1,4 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import { usesDirectDestinationLink } from "@/lib/campaign-links";
 import { prisma } from "@/lib/db/client";
 import {
   sendFacebookDirectMessageWithLinkButton,
@@ -8,10 +9,6 @@ import { decryptToken } from "@/lib/meta/oauth";
 import { FOLLOWUP_JOB_NAME, getDMQueue } from "@/lib/queue/client";
 import { buildTrackedUrl, renderMessageWithoutLink } from "@/lib/tracking/message";
 import { signRecipientReference } from "@/lib/tracking/recipient-reference";
-
-// This live Warmheart campaign sends the owner's Taap deep link directly.
-// Other Facebook campaigns retain tracked URLs and click attribution.
-const WARMHEART_DIRECT_LINK_CAMPAIGN_ID = "cmvpnhgmq000108l60fp45fxy";
 
 interface FacebookRevealRecord {
   id: string;
@@ -176,7 +173,7 @@ export async function processFacebookReveal(
     if (!primaryLink) return;
 
     const linkUrl =
-      log.automation.id === WARMHEART_DIRECT_LINK_CAMPAIGN_ID
+      usesDirectDestinationLink(log.automation.id, "FACEBOOK")
         ? primaryLink.destinationUrl
         : `${buildTrackedUrl(primaryLink.slug)}?ref=${encodeURIComponent(deps.signRecipientReference(log.id))}`;
 
